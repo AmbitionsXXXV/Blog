@@ -1,0 +1,177 @@
+---
+title: Rust learn algorithm - sort - bubble sort
+date: '2023-8-23'
+tags: ['Rust', 'Algorithm', 'sorting']
+draft: false
+summary: 'Rust 学习算法 - 排序算法 - 冒泡排序'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={2} />
+
+# 概述
+
+首先回顾下关于冒泡排序的相关思路
+
+冒泡排序是一种简单的排序算法,它的基本思路如下:
+
+- 遍历待排序的数组,从第一个元素开始,依次比较当前元素和相邻元素的大小.
+
+- 如果当前元素大于相邻元素,则交换这两个元素的位置,使较大的元素向右移动.
+
+- 继续遍历数组,重复步骤 1 和步骤 2,直到数组末尾.
+
+- 重复执行步骤 1 到步骤 3,直到没有任何元素需要交换,即数组已经排好序.
+
+可以看出,冒泡排序每一轮都将最大的元素通过比较交换操作移到数组的末尾.这样,每一轮都会确定一个最大的元素的位置,因此需要进行 n-1 轮的遍历（n 是数组的长度）.
+
+冒泡排序的时间复杂度为 O(n^2)
+
+# 实现
+
+## 第一步
+
+```rust
+// PartialOrd 用于实现对于可比较类型的值进行有序比较
+// 泛型 <T: PartialOrd> 来表示输入类型 T 需要实现 PartialOrd trait.这样做的目的是允许你的排序算法可以应用于任意实现了 PartialOrd 的类型
+pub fn bubble_sort<T: PartialOrd>(arr: &mut [T]) {}
+```
+
+### 使用 PartialOrd
+
+`PartialOrd` 是一个 `trait(特性)`,用于实现对于可比较类型的值进行部分有序比较.它定义了一组方法,允许我们比较两个值的大小关系.
+
+具体来说,`PartialOrd` 提供了以下方法:
+
+`fn partial_cmp(&self, other: &Self) -> Option<Ordering>`:比较当前值与另一个值的大小关系,并返回一个 `Option<Ordering>` 类型的值.如果返回 `Some(ordering)`,表示两个值是可比较的,并且 `ordering` 表示它们的大小关系；如果返回 `None`,表示两个值不可比较.
+
+- `fn lt(&self, other: &Self) -> bool`:检查当前值是否小于另一个值.
+
+- `fn le(&self, other: &Self) -> bool`:检查当前值是否小于等于另一个值.
+
+- `fn gt(&self, other: &Self) -> bool`:检查当前值是否大于另一个值.
+
+- `fn ge(&self, other: &Self) -> bool`:检查当前值是否大于等于另一个值.
+
+## 第二步
+
+先做空处理和长度为 1 时的处理,过后存储数组长度,然后开始遍历数组,记录是否有交换发生,有助于特殊情况下降低时间复杂度
+
+```rust
+pub fn bubble_sort<T: PartialOrd>(arr: &mut [T]) {
+    if arr.len() <= 1 {
+        return;
+    }
+
+    let size = arr.len();
+
+    for i in 0..(size - 1) {
+        // 记录是否有交换发生,有助于特殊情况下降低时间复杂度
+        let mut swapped = false;
+    }
+}
+```
+
+## 第三步
+
+完善核心逻辑,即遍历数组,比较相邻元素,如果前者大于后者,则交换位置
+
+```rust
+pub fn bubble_sort<T: PartialOrd>(arr: &mut [T]) {
+    if arr.len() <= 1 {
+        return;
+    }
+
+    let size = arr.len();
+
+    for i in 0..(size - 1) {
+        // 记录是否有交换发生,有助于特殊情况下降低时间复杂度
+        let mut swapped = false;
+
+        for j in 1..(size - i) {
+            if arr[j - 1] > arr[j] {
+                arr.swap(j - 1, j);
+                swapped = true;
+            }
+        }
+
+        // 如果没有交换发生,说明已经排好序了
+        if !swapped {
+            break;
+        }
+    }
+}
+```
+
+## 第四步
+
+完备的程序需要测试,编写测试用例并使用 `cargo test` 来测试我们的程序
+
+同时对空数组、数字数组、字符串数组进行测试
+
+```rust
+pub fn bubble_sort<T: PartialOrd>(arr: &mut [T]) {
+    if arr.len() <= 1 {
+        return;
+    }
+
+    let size = arr.len();
+
+    for i in 0..(size - 1) {
+        // 记录是否有交换发生,有助于特殊情况下降低时间复杂度
+        let mut swapped = false;
+
+        for j in 1..(size - i) {
+            if arr[j - 1] > arr[j] {
+                arr.swap(j - 1, j);
+                swapped = true;
+            }
+        }
+
+        // 如果没有交换发生,说明已经排好序了
+        if !swapped {
+            break;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_empty_vec() {
+        let mut empty_vec: Vec<String> = vec![];
+        bubble_sort(&mut empty_vec);
+        assert_eq!(empty_vec, Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_number_vec() {
+        let mut vec = vec![7, 49, 73, 58, 30, 72, 44, 78, 23, 9];
+        bubble_sort(&mut vec);
+        assert_eq!(vec, vec![7, 9, 23, 30, 44, 49, 58, 72, 73, 78]);
+    }
+
+    #[test]
+    fn test_string_vec() {
+        let mut vec = vec![
+            String::from("Bob"),
+            String::from("David"),
+            String::from("Carol"),
+            String::from("Alice"),
+        ];
+        bubble_sort(&mut vec);
+        assert_eq!(
+            vec,
+            vec![
+                String::from("Alice"),
+                String::from("Bob"),
+                String::from("Carol"),
+                String::from("David"),
+            ]
+        );
+    }
+}
+```

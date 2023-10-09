@@ -1,0 +1,181 @@
+---
+title: Golang的一些东西(七)
+date: '2023-5-26'
+tags: ['Golang']
+draft: false
+summary: '浅学一下Golang,第七篇,etc...'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={2} />
+
+# 指针
+
+```go
+package main
+
+import "fmt"
+
+type Person struct {
+	name string
+	age  int
+}
+
+func changeName(p *Person) {
+	fmt.Println(p.name)
+}
+
+func (p Person) setName() {
+
+}
+
+// 交换值
+func swap(a, b *int) {
+	cur := *a
+	*a = *b
+	*b = cur
+}
+
+func main() {
+	p := Person{
+		"aimyon",
+		28,
+	}
+
+	changeName(&p)
+
+	// 指针的定义
+	// var po *Person // 代表初始化一个类型为Person指针的,po变量
+	po := &Person{
+		name: "oor",
+	}
+
+	// 使用指针
+	// 两种方式都可以,第二种是因为Go自身做了优化,同时Go限制了指针不能做运算
+	// 同时这里的 * 和前面 *Person的 * 表示不同
+	// *Person的 * 是表示类型是指针地址
+	// 这里的 * 是解引用获取地址对应值
+	(*po).name = "ONE OK ROCK"
+	po.name = "ONE O'Clock"
+	fmt.Println(po)
+
+	// 指针需要初始化,推荐使用new()方法
+	// new()方法初始化后会返回地址
+	// var pp = new(Person)
+
+	// 交换值swap使用
+	a, b := 1, 2
+	swap(&a, &b)
+	fmt.Println(a, b)
+}
+```
+
+# 接口`interface`
+
+`go`语言中处处都是 interface,处处都是鸭子类型
+
+鸭子类型:鸭子类型(duck typing)是一种动态类型语言中的编程风格,它关注对象的行为(方法和属性)而非对象的类型.具体来说,如果一个对象"走起路来像鸭子,叫起来也像鸭子",那么它就可以被视作"鸭子",即可被当作“鸭子”来使用.这种编程风格通常和多态性相关,使得不同的对象可以拥有相同的方法名,从而实现代码的复用和灵活性.鸭子类型强调的是代码设计的灵活性和适应性,而不是类型的严谨性
+
+```go
+package main
+
+import "fmt"
+
+type MyWriter interface {
+	Write(string) error
+}
+
+type MySinger interface {
+	Sing(string) error
+}
+
+type DBWrite struct {
+}
+
+type writeSing struct {
+	MyWriter // interface 也是一个类型,实现了MyWriter的类型
+}
+
+// 为DBWrite实现了Write,即实现了MyWrite
+func (db *DBWrite) Write(string) error {
+	fmt.Println("DBWrite")
+	return nil
+}
+
+func (oor *writeSing) Write(string) error {
+	fmt.Println("write...")
+	return nil
+}
+
+func (oor *writeSing) Sing(string) error {
+	fmt.Println("sing...")
+	return nil
+}
+
+func main() {
+	var mw MyWriter = &writeSing{}
+	var ms MySinger = &writeSing{}
+	var db MyWriter = &DBWrite{}
+
+	err := mw.Write("ONE OK ROCK")
+	if err != nil {
+		return
+	}
+	err1 := ms.Sing("Sing")
+	if err1 != nil {
+		return
+	}
+	err3 := db.Write("DB")
+	if err3 != nil {
+		return
+	}
+}
+```
+
+# `interface`解决动态类型传参
+
+```go
+package main
+
+import "fmt"
+
+// 但是并不通用,只是针对处理了int类型
+// func add(a, b interface{}) int {
+// 	i, ok := a.(int)
+// 	if !ok {
+// 		panic("a is not an int")
+// 	}
+// 	j, _ := b.(int)
+// 	return i + j
+// }
+
+func add(a, b interface{}) interface{} {
+	switch a.(type) {
+	case int:
+		ai, _ := a.(int)
+		bi, _ := b.(int)
+		return ai + bi
+	case int32:
+		ai, _ := a.(int32)
+		bi, _ := b.(int32)
+		return ai + bi
+	case float64:
+		ai, _ := a.(float64)
+		bi, _ := b.(float64)
+		return ai + bi
+	case string:
+		as, _ := a.(string)
+		bs, _ := b.(string)
+		return as + bs
+	default:
+		panic("not support")
+	}
+}
+
+func main() {
+	a, b := 36, 10969
+	fmt.Println(add(a, b))
+}
+```

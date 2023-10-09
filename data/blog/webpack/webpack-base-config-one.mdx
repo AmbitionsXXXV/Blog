@@ -1,0 +1,265 @@
+---
+title: 重学webpack(二) -- Source map & Babel
+date: '2023-10-2'
+tags: ['webpack']
+draft: false
+summary: '重学webpack 第 2 部分 -- Source-map & Babel'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={3} />
+
+## mode
+
+| 选项          | 描述                                                                                                                                                                                                                                                                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `development` | 会将 `DefinePlugin` 中 `process.env.NODE_ENV` 的值设置为 `development`. 为模块和 `chunk` 启用有效的名.                                                                                                                                                                                                        |
+| `produvtion`  | 如果没有设置，`webpack` 会给 `mode` 的默认值设置为 `production`.会将 `DefinePlugin` 中 `process.env.NODE_ENV` 的值设置为 `production`.为模块和 `chunk` 启用确定性的混淆名称，`FlagDependencyUsagePlugin`，`FlagIncludedChunksPlugin`，`ModuleConcatenationPlugin`，`NoEmitOnErrorsPlugin` 和 `TerserPlugin` . |
+| `none`        | 不使用任何默认优化选项                                                                                                                                                                                                                                                                                        |
+
+### development
+
+```diff:webpack.development.config.js showLineNumbers
+// 开启 development 后 webpack 会默认开启以下配置
+module.exports = {
++  mode: 'development',
+-  devtool: 'eval',
+-  cache: true,
+-  performance: {
+-    hints: false,
+-  },
+-  output: {
+-    pathinfo: true,
+-  },
+-  optimization: {
+-    moduleIds: 'named',
+-    chunkIds: 'named',
+-    mangleExports: false,
+-    nodeEnv: 'development',
+-    flagIncludedChunks: false,
+-    concatenateModules: false,
+-    splitChunks: {
+-      hidePathInfo: false,
+-      minSize: 10000,
+-      maxAsyncRequests: Infinity,
+-      maxInitialRequests: Infinity,
+-    },
+-    emitOnErrors: false,
+-    checkWasmTypes: false,
+-    minimize: false,
+-    removeAvailableModules: false,
+-  },
+-  plugins: [
+-    new webpack.DefinePlugin({ 'process.env.NODE_ENV': JSON.stringify('development') }),
+-  ],
+}
+```
+
+### production
+
+```diff:webpack.production.config.js showLineNumbers
+// 开启 production 后 webpack 会默认开启以下配置
+module.exports = {
++  mode: 'production',
+-  performance: {
+-    hints: 'warning',
+-  },
+-  output: {
+-    pathinfo: false,
+-  },
+-  optimization: {
+-    moduleIds: 'deterministic',
+-    chunkIds: 'deterministic',
+-    mangleExports: 'deterministic',
+-    nodeEnv: 'production',
+-    flagIncludedChunks: true,
+-    concatenateModules: true,
+-    splitChunks: {
+-      hidePathInfo: true,
+-      minSize: 30000,
+-      maxAsyncRequests: 5,
+-      maxInitialRequests: 3,
+-    },
+-    emitOnErrors: false,
+-    checkWasmTypes: true,
+-    minimize: true,
+-  },
+-  plugins: [
+-    new TerserPlugin(/* ... */),
+-    new webpack.DefinePlugin({ 'process.env.NODE_ENV': JSON.stringify('production') }),
+-    new webpack.optimize.ModuleConcatenationPlugin(),
+-    new webpack.NoEmitOnErrorsPlugin(),
+-  ],
+}
+```
+
+## Source-map
+
+### 什么是 Source-map
+
+`Source-map` 是一个映射关系，它可以将编译后的代码映射回原始源代码.
+
+当然开启 `Source-map` 也需要浏览器支持,`Settings` -> `Preferences` -> `Sources` -> `Enable JavaScript source maps`.
+
+同时 `Source-map` 对性能也有一定的影响,所以在开发环境下使用,生产环境下不使用(包括对源码的保护,生产环境也不会用).
+
+```diff:webpack.config.js
+const path = require('path')
+
+module.exports = {
+  // 不写 webpack 默认为 production
+  mode: 'production',
++  // 默认为 none
++  devtool: 'source-map',
+  entry: './src/main.js',
+  output: {
+    path: path.resolve(__dirname, 'dist'),
+    filename: 'bundle.js',
+  },
+}
+```
+
+转换后的代码最后会添加一个注释,指向 `sourcemap` 映射 `json` 文件
+
+```js
+//# sourceMappingURL=bundle.js.map
+```
+
+## 具体 devtool 配置项大概有 26 个
+
+[devtool 配置项](https://webpack.js.org/configuration/devtool/#root)
+
+## Babel
+
+### 为什么需要 Babel
+
+`Babel` 是一个 JavaScript 编译器,它可以将 ES6+ 的代码向后兼容转换为 ES5 的代码,从而可以在现代浏览器上运行. (包括: 语法转换、源代码转换、Polyfill 实现目标环境缺少的功能)
+
+### Babel 的核心包
+
+`Babel` 本身可以单独作为一个独立的工具使用(`postcss` 也是),不和 `webpack` 等构建工具配置来单独使用
+
+单独使用需要如下库:
+
+    - `@babel/core` 核心包
+    - `@babel/cli` 命令行工具
+
+### 使用
+
+1. 同样先在 `src/main.js`
+
+   ```js
+   const singer = 'Aimyon'
+   console.log(singer)
+
+   const sing = () => {
+     console.log('ONE OK ROCK')
+   }
+   sing()
+   ```
+
+   并在 `package.json` 添加脚本 `"dev": "babel ./src --out-dir ./dist --watch"`
+
+   然后执行 `pnpm dev`,会发现其实只是减少了空格等,并没有转换 ES6+ 的代码
+
+   ```js
+   const singer = 'Aimyon'
+   console.log(singer)
+   const sing = () => {
+     console.log('ONE OK ROCK')
+   }
+   sing()
+   ```
+
+2. 下载 plugin `@babel/plugin-transform-block-scoping`, 然后运行 `pnpm dev --plugins=@babel/plugin-transform-block-scoping`
+
+   ```js
+   var singer = 'Aimyon'
+   console.log(singer)
+   var sing = () => {
+     console.log('ONE OK ROCK')
+   }
+   sing()
+   ```
+
+   会发现 `const` 被转换为 `var`,但是 `arrow function` 并没有被转换,因为 `@babel/plugin-transform-block-scoping` 只能转换 `const` 和 `let`,所以需要下载 `@babel/plugin-transform-arrow-functions` 来转换 `arrow function`
+
+   然后运行 `pnpm dev --plugins=@babel/plugin-transform-block-scoping,@babel/plugin-transform-arrow-functions`
+
+   ```js
+   var singer = 'Aimyon'
+   console.log(singer)
+   var sing = function () {
+     console.log('ONE OK ROCK')
+   }
+   sing()
+   ```
+
+   以上就是简单的从零使用 `Babel`
+
+### @babel/preset-env
+
+`@babel/preset-env` 是 `Babel` 官方提供的一个预设,它包含了一组 `Babel` 插件,用于将 ES6+ 的代码转换为 ES5 的代码
+
+安装后运行 `pnpm dev --presets=@babel/preset-env`,产出如下代码
+
+```js
+'use strict'
+
+var singer = 'Aimyon'
+console.log(singer)
+var sing = function sing() {
+  console.log('ONE OK ROCK')
+}
+sing()
+```
+
+## Babel 的底层原理
+
+从一种源代码(原生语言)转换成另外一种源代码(目标语言),而这部分工作本质上就是`编译器`的工作,所以`Babel`本质上就是一个编译器
+
+`Babel` 的底层原理是 `@babel/parser` 将源代码转换为 `AST`,然后 `@babel/traverse` 对 `AST` 进行遍历,最后 `@babel/generator` 将 `AST` 转换为代码,这个过程中还会用到 `@babel/core` 和 `@babel/preset-env` 等插件
+
+### Babel 的工作流程
+
+- 解析(Parsing): 将代码解析成 `AST`
+- 转换(Transformation): 对 `AST` 进行转换操作
+- 生成(Code Generation): 根据 `AST` 生成新的代码
+
+## Babel & webpack
+
+```js:webpack.config.js
+const path = require('path')
+
+module.exports = {
+  // 不写 webpack 默认为 production
+  mode: 'development',
+  devtool: false,
+  entry: './src/main.js',
+  output: {
+    path: path.resolve(__dirname, 'dist'),
+    filename: 'bundle.js',
+    // 重新打包时，先将之前的打包产物删除
+    clean: true,
+  },
+  module: {
+    rules: [
+      {
+        test: /\.m?js$/, // 匹配 js 文件
+        use: {
+          loader: 'babel-loader',
+          options: {
+            // plugins: [
+            //   '@babel/plugin-transform-arrow-functions',
+            //   '@babel/plugin-transform-block-scoping',
+            // ],
+            presets: ['@babel/preset-env'],
+          },
+        },
+      },
+    ],
+  },
+}
+```

@@ -1,0 +1,161 @@
+---
+title: Rust入门笔记(四)
+date: '2023-6-9'
+tags: ['Rust', 'Rust入坑系列']
+draft: false
+summary: 'Rust (enum)枚举 & 模式匹配'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={2} />
+
+# 定义枚举
+
+```rust
+enum Message {
+    Quit,
+    Move { x: i32, y: i32 },
+    Write(String),
+    ChangeColor(i32, i32, i32),
+}
+
+impl Message {
+    fn call(&self) {
+        // method body would be defined here
+    }
+}
+
+fn main() {
+    let m = Message::Write(String::from("hello"));
+    m.call();
+}
+```
+
+```rust
+// 复杂枚举定义
+#[derive(Debug)]
+enum Message {
+    Move { x: i32, y: i32 },
+    Echo(String),
+    ChangeColor(i32, i32, i32),
+    Quit,
+}
+
+impl Message {
+    fn call(&self) {
+        println!("{:?}", &self);
+    }
+}
+
+fn main() {
+    let messages = [
+        Message::Move { x: 10, y: 30 },
+        Message::Echo(String::from("hello world")),
+        Message::ChangeColor(200, 255, 255),
+        Message::Quit,
+    ];
+
+    for message in &messages {
+        message.call();
+    }
+}
+```
+
+# 模式匹配同时绑定变量
+
+```rust
+#[derive(Debug)] // so we can inspect the state in a minute
+enum UsState {
+    Alabama,
+    Alaska,
+    // --snip--
+}
+
+enum Coin {
+    Penny,
+    Nickel,
+    Dime,
+    Quarter(UsState),
+}
+
+fn value_in_cents(coin: Coin) -> u8 {
+    match coin {
+        Coin::Penny => 1,
+        Coin::Nickel => 5,
+        Coin::Dime => 10,
+        Coin::Quarter(state) => {
+            println!("State quarter from {:?}!", state);
+            25
+        }
+    }
+}
+
+fn main() {
+    let value = value_in_cents(Coin::Quarter(UsState::Alabama));
+}
+```
+
+# 模式匹配结合 Option 类型
+
+```rust
+fn plus_one(x: Option<i32>) -> Option<i32> {
+    match x {
+        None => None,
+        Some(i) => Some(i + 1),
+    }
+}
+
+fn main() {
+    let five = Some(5);
+    let six = plus_one(five);
+    let none = plus_one(None);
+}
+```
+
+# Match 匹配必须穷尽可能性
+
+```rust
+fn plus_one(x: Option<i32>) -> Option<i32> {
+    // !!! ERROR: Match must be exhaustive
+    match x {
+        Some(i) => Some(i + 1),
+    }
+}
+
+fn main() {
+    // put you code here to launch it
+}
+```
+
+```rust
+// 修改后
+fn plus_one(x: Option<i32>) -> Option<i32> {
+    // !!! ERROR: Match must be exhaustive
+    match x {
+        Some(i) => Some(i + 1),
+        None => None,
+    }
+}
+
+fn main() {
+    // put you code here to launch it
+    plus_one(Some(1));
+}
+```
+
+# rust 读取文件操作
+
+```rust
+use std::fs::File;
+use std::io::{BufRead, BufReader, Result};
+
+fn main() -> Result<()> {
+    let reader = BufReader::new(File::open("oor.txt")?);
+    for line in reader.lines() {
+        println!("{}", line?);
+    }
+    Ok(())
+}
+```

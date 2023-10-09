@@ -1,0 +1,298 @@
+---
+title: Rust入门笔记(八)
+date: '2023-8-5'
+tags: ['Rust', 'Rust入坑系列']
+draft: false
+summary: 'Rust 第8部分 -- Rust 中的包和模块化 & Rust 的注释/文档注释'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={2} />
+
+# Rust 中的包和模块化
+
+先来个例子: [rust module 的例子](https://github.com/AmbitionsXXXV/rust_learn_task)
+
+## Crate（程序包）
+
+`Crate` 是一个 `Rust` 项目的编译单元，它可以编译成一个库或一个可执行程序。
+
+### 创建 Crate
+
+- 可执行程序 `crate`：当你使用 `Cargo` 创建一个新的项目时，例如 `cargo new my_project`，默认情况下，`Cargo` 会创建一个 `main.rs` 文件作为 `crate` 的根
+- 库 `crate`：要创建一个库 `crate`，需要使用 `--lib` 标志，例如 `cargo new my_library --lib`。这将会创建一个 `lib.rs` 文件作为 `crate` 的根
+
+### 使用 Crate
+
+在 `Rust` 中，要使用其他 `crate`，你需要在 `Cargo.toml` 文件的 `[dependencies]` 部分添加它们。然后在代码中，可以使用 `extern crate` 声明来引入它们，例如：
+
+```rust
+extern crate regex;
+```
+
+然而，从 `Rust 2018 edition` 开始，`extern crate` 声明通常是不需要的，因为它们会自动引入。
+
+## Module（模块）
+
+`Rust` 的模块系统用于组织大量的代码，模块系统由包（packages）、Crate、模块、以及路径四个部分构成。
+
+### 创建 Module
+
+假设你有一个名为 `math` 的模块，它有一个名为 `complex` 的子模块：
+
+```rust
+mod math {
+  pub mod complex {
+    pub fn add() {
+    //...
+    }
+    pub fn sub() {
+    //...
+    }
+  }
+}
+```
+
+你可以使用 `pub` 关键字来使函数、模块、类型、常量等公有。
+
+### 使用 Module
+
+如果你想使用 `math::complex::add` 函数，你需要使用 `use` 关键字：
+
+```rust
+use math::complex::add;
+
+fn main() {
+    add();
+}
+```
+
+你也可以使用 `use` 关键字来将模块引入到当前的作用域：
+
+```rust
+use math::complex;
+
+fn main() {
+    complex::add();
+}
+```
+
+还可以使用 `as` 关键字来为模块提供别名：
+
+```rust
+use math::complex as cusComplex;
+
+fn main() {
+    cusComplex::add();
+}
+```
+
+# Rust 的注释和文档
+
+- Rust 的注释有三类(甚至你还能在文档注释中写测试用例):
+- 代码注释，用于说明某一块代码的功能，读者往往是同一个项目的协作开发者
+- 文档注释,支持 `Markdown`，对项目描述、公共 API 等用户关心的功能进行介绍，同时还能提供示例代码，目标读者往往是想要了解你项目的人
+- 包和模块注释,严格来说这也是文档注释中的一种，它主要用于说明当前包和模块的功能，方便用户迅速了解一个项目
+
+## 代码注释
+
+> 行注释 `//`
+
+```rust
+fn main() {
+    // 这是行注释
+}
+```
+
+> 块注释 `/* ...... */`
+
+```rust
+fn main() {
+    /*
+    这是块注释
+    多行代码块时使用
+    */
+}
+```
+
+> 文档注释 `///`
+
+````rust
+/// `add_one` 将指定值加1
+///
+/// # Examples
+///
+/// ```
+/// let arg = 5;
+/// let answer = my_crate::add_one(arg);
+///
+/// assert_eq!(6, answer);
+/// ```
+pub fn add_one(x: i32) -> i32 {
+    x + 1
+}
+````
+
+以上代码有几点需要注意：
+
+- `文档注释`需要位于 `lib` 类型的包中，例如 `src/lib.rs` 中
+- `文档注释`可以使用 `markdown` 语法！例如 # Examples 的标题，以及代码块高亮
+- 被注释的对象需要使用 `pub` 对外可见，记住：文档注释是给用户看的，内部实现细节不应该被暴露出去
+
+> 文档块注释 `/** ... */`
+
+与代码注释一样，文档也有块注释，当注释内容多时，使用块注释可以减少 `///` 的使用：
+
+> 查看文档 `cargo doc`
+
+运行 `cargo doc` 可以直接生成 `HTML` 文件，放入 `target/doc` 目录下。
+
+为了方便，我们还可以使用 `cargo doc --open` 命令，可以在生成文档后，自动在浏览器中打开网页
+
+> 常用文档标题
+
+文档注释中该如何使用 `markdown`，其中包括 `# Examples` 标题。除了这个标题，还有一些常用的，可以在项目中酌情使用：
+
+- `Panics`：函数可能会出现的异常状况，这样调用函数的人就可以提前规避
+- `Errors`：描述可能出现的错误及什么情况会导致错误，有助于调用者针对不同的错误采取不同的处理方式
+- `Safety`：如果函数使用 `unsafe` 代码，那么调用者就需要注意一些使用条件，以确保 `unsafe` 代码块的正常工作
+
+## 包和模块级别的注释
+
+除了函数、结构体等 Rust 项的注释，你还可以给包和模块添加注释，需要注意的是，<span className='text-red-200'>这些注释要添加到包、模块的最上方！</span>
+
+与之前的任何注释一样，包级别的注释也分为两种：`行注释 //!` 和`块注释 /*! ... */`
+
+现在，为我们的包增加注释，在 `src/lib.rs` 包根的最上方，添加：
+
+```rust
+/*! lib包是world_hello二进制包的依赖包，
+ 里面包含了compute等有用模块 */
+
+pub mod compute;
+```
+
+然后再为该包根的子模块 `src/compute.rs` 添加注释：
+
+```rust
+//! 计算一些你口算算不出来的复杂算术题
+
+
+/// `add_one`将指定值加1
+///
+```
+
+## 文档测试
+
+在之前的 `add_one` 中，我们写的示例代码非常像是一个单元测试的用例，这是偶然吗？并不是。因为 <span className='text-red-200'><code>Rust</code> 允许我们在文档注释中写单元测试用例！</span>方法就如同之前做的：
+
+以上的注释不仅仅是文档，还可以作为单元测试的用例运行，使用 cargo test 运行测试：
+
+```shell
+Doc-tests world_hello
+
+running 2 tests
+test src/compute.rs - compute::add_one (line 8) ... ok
+test src/compute.rs - compute::add_two (line 22) ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.00s
+```
+
+### 造成 `panic` 的文档测试
+
+文档测试中的用例还可以造成 `panic`：
+
+````rust
+/// # Panics
+///
+/// The function panics if the second argument is zero.
+///
+/// ```rust
+/// // panics on division by zero
+/// world_hello::compute::div(10, 0);
+/// ```
+pub fn div(a: i32, b: i32) -> i32 {
+    if b == 0 {
+        panic!("Divide-by-zero error");
+    }
+
+    a / b
+}
+````
+
+## 文档注释中的代码跳转
+
+`Rust` 在文档注释中还提供了一个非常强大的功能，那就是可以实现对外部项的链接：
+
+### 跳转到标准库
+
+```rust
+/// `add_one` 返回一个[`Option`]类型
+pub fn add_one(x: i32) -> Option<i32> {
+    Some(x + 1)
+}
+```
+
+此处的 `[Option]` 就是一个链接，指向了标准库中的 `Option` 枚举类型，有两种方式可以进行跳转:
+
+在 IDE 中，使用 `Command + 鼠标左键(macOS)`，`CTRL + 鼠标左键(Windows)`
+在文档中直接点击链接
+
+还可以使用路径的方式跳转：
+
+```rust
+use std::sync::mpsc::Receiver;
+
+/// [`Receiver<T>`]   [`std::future`].
+///
+///  [`std::future::Future`] [`Self::recv()`].
+pub struct AsyncReceiver<T> {
+    sender: Receiver<T>,
+}
+
+impl<T> AsyncReceiver<T> {
+    pub async fn recv() -> T {
+        unimplemented!()
+    }
+}
+```
+
+### 使用完整路径跳转到指定项
+
+除了跳转到标准库，你还可以通过指定具体的路径跳转到自己代码或者其它库的指定项，例如在 `lib.rs` 中添加以下代码：
+
+```rust
+pub mod a {
+    /// `add_one` 返回一个[`Option`]类型
+    /// 跳转到[`crate::MySpecialFormatter`]
+    pub fn add_one(x: i32) -> Option<i32> {
+        Some(x + 1)
+    }
+}
+
+pub struct MySpecialFormatter;
+```
+
+使用 `crate::MySpecialFormatter` 这种路径就可以实现跳转到 `lib.rs` 中定义的结构体上
+
+### 同名项的跳转
+
+如果遇到同名项，可以使用标示类型的方式进行跳转：
+
+```rust
+/// 跳转到结构体  [`Foo`](struct@Foo)
+pub struct Bar;
+
+/// 跳转到同名函数 [`Foo`](fn@Foo)
+pub struct Foo {}
+
+/// 跳转到同名宏 [`foo!`]
+pub fn Foo() {}
+
+#[macro_export]
+macro_rules! foo {
+  () => {}
+}
+```

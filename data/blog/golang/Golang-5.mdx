@@ -1,0 +1,142 @@
+---
+title: Golang的一些东西(五)
+date: 2023-05-23T19:52:14Z
+tags: ['Golang']
+draft: false
+summary: '浅学一下Golang,第五篇,etc...'
+authors: ['default']
+---
+
+# 函数定义及入参
+
+`Go`中同`JavaScript`一样遵循函数是一等公民
+
+```go
+package main
+
+import "fmt"
+
+// func add(a int, b int) int {
+//
+//	func add(a, b int) (int, error) {
+//		a = 3636
+//		return a + b, nil
+//	}
+
+func add(a, b int) (sum int, err error) {
+	sum = a + b
+	return sum, err
+}
+
+// 剩余参数
+func add2(item ...int) (sum int, err error) {
+	for _, value := range item {
+		sum += value
+	}
+	return sum, nil
+}
+
+func main() {
+	// 普通函数、匿名函数、闭包
+	/*
+		Go中"函数是一等公民"
+		1.函数本身可以当作变量
+		2.匿名函数 闭包
+		3.函数可以满足接口
+	*/
+	a, b := 36, 10969
+
+	sum, _ := add(a, b)
+	sum2, _ := add2(1, 2, 3, 4, 5, 6)
+	fmt.Println(a) // a还是36,所以Go中函数参数是值传递,即参数会被深拷贝
+	fmt.Println(sum)
+	fmt.Println(sum2)
+
+  // 函数作为变量
+	myAdd := add2
+	total, _ := myAdd(7, 8, 9, 10)
+	fmt.Println(total)
+}
+```
+
+# Go 的闭包
+
+```go
+package main
+
+import "fmt"
+
+func autoIncrement() func() int {
+	local := 0
+	return func() int {
+		local += 1
+		return local
+	}
+}
+
+func main() {
+	next := autoIncrement()
+	for i := 0; i < 5; i++ {
+		fmt.Println(next())
+	}
+	next2 := autoIncrement()
+	for i := 0; i < 3; i++ {
+		fmt.Println(next2())
+	}
+}
+```
+
+# defer
+
+```go
+package main
+
+import "sync"
+
+func main() {
+	// 连接数据库、打开文件、开始锁； 无论如何最后都要记得去关闭数据库、关闭文件、解锁
+	var mu sync.Mutex
+	mu.Lock()
+
+	defer mu.Unlock() // defer 后面的代码是会放在函数return之前执行的
+}
+```
+
+# 简单提下 Go 的 error 处理以及 panic
+
+Go 对比其他语言的`try catch`使用返回值给出 err,来限制开发者来必须处理 err 是触发 panic 还是什么 `error` `panic` `recover`
+
+`panic`是 Go 的内置函数,使用后会导致程序退出,一般不会主动 `panic` 退出程序
+
+`recover` 是另一个内置函数,这个函数能够捕获`panic`
+
+```go
+package main
+
+import (
+	"errors"
+	"fmt"
+)
+
+func A() (int, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("recovered if A: ", r)
+		}
+	}()
+	var names map[string]string
+	names["go"] = "go engineer"
+
+	return 0, errors.New("this is a error")
+
+  // 1.defer 需要放在 panic之前定义,另外 recover 只有在 defer 调用的函数中才会生效
+  // 2.recover 处理异常后,逻辑并不会恢复到 panic 的那个位置
+  // 3.多个 defer 会形成栈,后入先出,后面的先执行
+}
+
+func main() {
+	if _, err := A(); err != nil {
+		fmt.Println(err)
+	}
+}
+```

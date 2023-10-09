@@ -1,0 +1,132 @@
+---
+title: Golang的一些东西
+date: '2023-4-11'
+tags: ['Golang']
+draft: false
+summary: '浅学一下Golang,etc...'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={2} />
+
+# 基本类型下的注意
+
+```go {1,3,8-38} showLineNumbers
+package main
+
+import "fmt"
+
+// 该位置声明变量，作用于等同package，该目录下其他函数也能访问该变量
+var name = "Golang"
+
+func main() {
+  // main函数下两种方式没有区别
+  // var singer = "aimyon"
+  singer := "aimyon"
+  var count float64 = 10969.3636
+
+  for count:=10;count>0;count--{
+    // 这里的count就是一个局部变量，for循环代码块执行后，销毁
+    fmt.Println(count)
+  }
+
+  // 4 表示宽度，即最少字符个数(包含小数点和小数)
+  // 2 表示经度，小数点后边显示的位数
+  fmt.Printf("%4.2f", count)
+  // 使用 0 向左填充
+  fmt.Printf("%04.2f", count)
+
+  // 整数转浮点数
+  intn := 10
+  fln := float64(intn)
+
+  // 浮点数转整数，会截断小数点后的数
+  flon := 10969.3636
+  in := int(flon)
+
+  // 数字转字符
+  countdown := 9
+  // Sprintf 功能类似 Printf
+  str := fmt.Sprintf("It's %v seconds.", countdown)
+  fmt.Printf(str)
+}
+```
+
+# 实现一个简单的 Http 服务器
+
+```go
+package main
+
+import "net/http"
+
+func main() {
+	http.Handle("/", http.FileServer(http.Dir(".")))
+  // 错误处理
+	err := http.ListenAndServe(":8080", nil)
+	if err != nil {
+		return
+	}
+}
+```
+
+# 字符串格式化
+
+```go
+package main
+
+import "fmt"
+
+type point struct {
+	x, y int
+}
+
+func main() {
+	s := "Aimyon"
+	n := 36
+	p := point{1, 2}
+	fmt.Println(s, n) // Aimyon 123
+	fmt.Println(p)    // {1, 2}
+
+	fmt.Printf("s=%v\n", s)  // s=Aimyon
+	fmt.Printf("n=%v\n", n)  // n=36
+	fmt.Printf("p=%v\n", p)  // p={1, 2}
+	fmt.Printf("p=%+v\n", p) // p{x: 1,y: 2}
+	fmt.Printf("p=%#v\n", p) // p=main.point{x: 1, y: 2}
+
+	f := 3.1415926
+	fmt.Println(f)          // 3.1415926
+	fmt.Printf("%.2f\n", f) // 3.14
+}
+```
+
+# 时间处理
+
+```go
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func main() {
+	now := time.Now()
+	fmt.Println(now) // 2023-04-13 23:28:22.358079 +0800 CST m=+0.000074167
+	t := time.Date(2023, 4, 13, 22, 34, 40, 0, time.UTC)
+	t2 := time.Date(2023, 4, 13, 23, 43, 20, 0, time.UTC)
+	fmt.Println(t)                                                  // 2023-04-13 22:34:40 +0000 UTC
+	fmt.Println(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute()) // 2023 April 13 22 34
+	fmt.Println(t.Format("2023-01-02 16:05:02"))                    // 131310-04-13 46:40:13
+	diff := t2.Sub(t)
+	fmt.Println(diff)                           // 1h8m40s
+	fmt.Println(diff.Minutes(), diff.Seconds()) // 68.66666666666667 4120
+	t3, err := time.Parse("2006-01-02 15:04:05", "2023-04-13 22:34:40")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(t3 == t)    // true
+	fmt.Println(now.Unix()) // 1681400898
+}
+```

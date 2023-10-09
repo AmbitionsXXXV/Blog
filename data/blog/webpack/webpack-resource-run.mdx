@@ -1,0 +1,245 @@
+---
+title: 重学webpack(四) -- webpack 源码阅读 run 方法
+date: '2023-10-4'
+tags: ['webpack']
+draft: false
+summary: '重学webpack 第 4 部分 -- webpack 源码阅读 run 方法'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={4} />
+
+## 前言
+
+### webpack 中 `compiler` 和 `compilation` 的区别?
+
+- `compiler` 是 `webpack` 的编译器, 用于编译整个项目
+- `compilation` 是每次编译的上下文, 用于存储编译过程中的各种信息
+
+### 执行周期的区别
+
+- `compiler` 的执行周期是整个项目的编译周期 (整个项目只有一个 `compiler`)
+- `compilation` 的执行周期是每次编译的周期 (每次编译都会生成一个新的 `compilation`)
+
+## run 方法
+
+```js showLineNumbers {1,30,45,49,74,96,107,114}
+// beforeRun => run => compile
+class Compiler {
+  this.idle = false
+
+  run(callback) {
+    if (this.running) {
+      return callback(new ConcurrentCompilationError())
+    }
+
+    let logger
+
+    const finalCallback = (err, stats) => {
+      if (logger) logger.time('beginIdle')
+      this.idle = true
+      this.cache.beginIdle()
+      this.idle = true
+      if (logger) logger.timeEnd('beginIdle')
+      this.running = false
+      if (err) {
+        this.hooks.failed.call(err)
+      }
+      if (callback !== undefined) callback(err, stats)
+      this.hooks.afterDone.call(stats)
+    }
+
+    const startTime = Date.now()
+
+    this.running = true
+
+    // 等待 compilation 将所有模块编译完成后执行的回调函数
+    const onCompiled = (err, compilation) => {
+      if (err) return finalCallback(err)
+
+      if (this.hooks.shouldEmit.call(compilation) === false) {
+        compilation.startTime = startTime
+        compilation.endTime = Date.now()
+        const stats = new Stats(compilation)
+        this.hooks.done.callAsync(stats, (err) => {
+          if (err) return finalCallback(err)
+          return finalCallback(null, stats)
+        })
+        return
+      }
+
+      // 使用 process.nextTick() 将 emitAssets 放到下一个事件循环中执行,为了防止阻塞
+      process.nextTick(() => {
+        logger = compilation.getLogger('webpack.Compiler')
+        logger.time('emitAssets')
+        // 输出构建产物,将编译后的文件写入到文件系统中(build文件夹)
+        this.emitAssets(compilation, (err) => {
+          logger.timeEnd('emitAssets')
+          if (err) return finalCallback(err)
+
+          if (compilation.hooks.needAdditionalPass.call()) {
+            compilation.needAdditionalPass = true
+
+            compilation.startTime = startTime
+            compilation.endTime = Date.now()
+            logger.time('done hook')
+            const stats = new Stats(compilation)
+            this.hooks.done.callAsync(stats, (err) => {
+              logger.timeEnd('done hook')
+              if (err) return finalCallback(err)
+
+              this.hooks.additionalPass.callAsync((err) => {
+                if (err) return finalCallback(err)
+                this.compile(onCompiled)
+              })
+            })
+            return
+          }
+
+          logger.time('emitRecords')
+          // 将资源和模块的记录信息写入到记录文件（record file）
+          this.emitRecords((err) => {
+            logger.timeEnd('emitRecords')
+            if (err) return finalCallback(err)
+
+            compilation.startTime = startTime
+            compilation.endTime = Date.now()
+            logger.time('done hook')
+            const stats = new Stats(compilation)
+            this.hooks.done.callAsync(stats, (err) => {
+              logger.timeEnd('done hook')
+              if (err) return finalCallback(err)
+              this.cache.storeBuildDependencies(compilation.buildDependencies, (err) => {
+                if (err) return finalCallback(err)
+                return finalCallback(null, stats)
+              })
+            })
+          })
+        })
+      })
+    }
+
+    // 自己的 build.js 文件里执行的run() 实际上就是这里的 run
+    const run = () => {
+      this.hooks.beforeRun.callAsync(this, (err) => {
+        if (err) return finalCallback(err)
+
+        this.hooks.run.callAsync(this, (err) => {
+          if (err) return finalCallback(err)
+
+          this.readRecords((err) => {
+            if (err) return finalCallback(err)
+
+            // 然后进入 compile 方法, onCompiled 是 compile 方法的回调函数 (编译完成后执行的回调函数)
+            this.compile(onCompiled)
+          })
+        })
+      })
+    }
+
+    // 判断是否是闲置状态
+    if (this.idle) {
+      this.cache.endIdle((err) => {
+        if (err) return finalCallback(err)
+
+        this.idle = false
+        run()
+      })
+    } else {
+      run()
+    }
+  }
+}
+```
+
+## compile 方法
+
+```js showLineNumbers {1,9,15-16}
+  // beforeCompile => compile => make => finishMake => afterCompile => done
+	compile(callback) {
+		const params = this.newCompilationParams();
+		this.hooks.beforeCompile.callAsync(params, err => {
+			if (err) return callback(err);
+
+			this.hooks.compile.call(params);
+
+      // 创建 compilation
+			const compilation = this.newCompilation(params);
+
+			const logger = compilation.getLogger("webpack.Compiler");
+
+			logger.time("make hook");
+      // 真正开始编译
+      // 这一步通过在创建 compiler 时候注册插件时是通过在 lib/EntryPlugin 里注册的 apply 方法注册的，所以执行 make.callAsync 就会触发,具体源码看下一段代码
+			this.hooks.make.callAsync(compilation, err => {
+				logger.timeEnd("make hook");
+				if (err) return callback(err);
+
+				logger.time("finish make hook");
+				this.hooks.finishMake.callAsync(compilation, err => {
+					logger.timeEnd("finish make hook");
+					if (err) return callback(err);
+
+					process.nextTick(() => {
+						logger.time("finish compilation");
+						compilation.finish(err => {
+							logger.timeEnd("finish compilation");
+							if (err) return callback(err);
+
+							logger.time("seal compilation");
+							compilation.seal(err => {
+								logger.timeEnd("seal compilation");
+								if (err) return callback(err);
+
+								logger.time("afterCompile hook");
+								this.hooks.afterCompile.callAsync(compilation, err => {
+									logger.timeEnd("afterCompile hook");
+									if (err) return callback(err);
+
+									return callback(null, compilation);
+								});
+							});
+						});
+					});
+				});
+			});
+		});
+	}
+```
+
+```js showLineNumbers {24,26}
+class EntryPlugin {
+  constructor(context, entry, options) {
+    this.context = context
+    this.entry = entry
+    this.options = options || ''
+  }
+
+  /**
+   * Apply the plugin
+   * @param {Compiler} compiler the compiler instance
+   * @returns {void}
+   */
+  apply(compiler) {
+    compiler.hooks.compilation.tap(
+      'EntryPlugin',
+      (compilation, { normalModuleFactory }) => {
+        compilation.dependencyFactories.set(EntryDependency, normalModuleFactory)
+      }
+    )
+
+    const { entry, options, context } = this
+    const dep = EntryPlugin.createDependency(entry, options)
+
+    // 在 make 阶段执行, 通过 addEntry 方法将入口模块添加到 compilation 中
+    compiler.hooks.make.tapAsync('EntryPlugin', (compilation, callback) => {
+      // 这里就开始进入从入口开始模块编译了，生成 webpack 核心的模块图谱 (moduleGraph)
+      compilation.addEntry(context, dep, options, (err) => {
+        callback(err)
+      })
+    })
+  }
+}
+```

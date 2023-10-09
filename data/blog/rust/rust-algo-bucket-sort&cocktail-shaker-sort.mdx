@@ -1,0 +1,225 @@
+---
+title: Rust learn algorithm - sort - bucket_sort & cocktail_shaker_sort
+date: '2023-8-25'
+tags: ['Rust', 'Algorithm', 'sorting']
+draft: false
+summary: 'Rust 学习算法 - 排序算法 - 桶排序&鸡尾酒排序'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={2} />
+
+# 桶排序
+
+## 思想概述
+
+桶排序是一种常见的排序算法，它通过将数据分散到不同的桶中，然后对每个桶中的数据进行单独排序，最后将所有桶中的数据按顺序合并起来得到有序结果。这个算法适用于数据的分布比较均匀的情况，它的时间复杂度在最好情况下可以达到线性时间。
+
+桶排序的基本步骤如下：
+
+1. 创建一个固定数量的空桶。
+2. 遍历待排序数组，根据某种映射将元素分配到不同的桶中。
+3. 对每个非空的桶分别进行排序，可以选择使用其他排序算法或者递归地继续使用桶排序。
+4. 将所有桶中的元素按顺序依次合并起来，即得到有序数组。
+
+需要注意的是，桶排序的性能在很大程度上取决于选择合适的桶数量以及桶之间的映射函数。如果桶的数量太少，可能会导致每个桶中的元素过多，影响排序效率；如果桶的数量太多，可能会导致大部分桶都为空，浪费空间和时间。
+
+总之，桶排序是一种在某些特定情况下很有用的排序算法，但并不适用于所有场景。在使用桶排序时，需要根据实际情况进行合理的桶数量选择和映射函数设计。
+
+## 代码实现
+
+```rust
+mod counting_sort;
+mod insertion_sort;
+
+pub fn main() {}
+
+// 时间复杂度 O(n + k), n: 输入数组的长度，k: 桶的数量
+// 空间复杂度 O(n + k), n: 输入数组的长度，k: 桶的数量
+pub fn bucket_sort(arr: &[usize]) -> Vec<usize> {
+    // 判断输入数组 arr 是否为空，如果为空，则直接返回一个空的向量 vec![]，表示已经是有序状态
+    if arr.is_empty() {
+        return vec![];
+    }
+
+    // 获取数组中的最大值 max，以及数组长度 len
+    let max = *arr.iter().max().unwrap();
+    let len = arr.len();
+
+    // 创建一个长度为 len + 1 的切片 buckets，用于存放桶，每个桶初始化为空向量
+    let mut buckets = vec![vec![]; len + 1];
+
+    // 遍历输入数组 arr 中的每个元素 i
+    // 计算元素 i 应该放入的桶的索引位置，使用公式 len * i / max
+    // 将元素 i 加入对应桶的末尾
+    for i in arr {
+        buckets[len * *i / max].push(*i);
+    }
+
+    // 遍历每个桶 bucket，对其中的元素进行排序，这里使用了内置的排序方法 sort_by
+    for bucket in buckets.iter_mut() {
+        // insertion_sort::insertion_sort(bucket);
+        // 使用任何排序方法都可以，这里使用内置的排序方法
+        bucket.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    }
+
+    // 创建一个新的向量 result，用于存放最终排序结果
+    let mut result = vec![];
+    // 遍历每个桶 bucket，将桶中的元素按顺序加入到 result 中
+    for bucket in buckets {
+        for x in bucket {
+            result.push(x);
+        }
+    }
+
+    result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use counting_sort::is_sorted;
+
+    #[test]
+    fn empty() {
+        let arr: [usize; 0] = [];
+        let res = bucket_sort(&arr);
+        assert!(is_sorted(&res));
+    }
+
+    #[test]
+    fn one_element() {
+        let arr: [usize; 1] = [4];
+        let res = bucket_sort(&arr);
+        assert!(is_sorted(&res));
+    }
+
+    #[test]
+    fn already_sorted() {
+        let arr: [usize; 3] = [10, 9, 105];
+        let res = bucket_sort(&arr);
+        assert!(is_sorted(&res));
+    }
+
+    #[test]
+    fn basic() {
+        let arr: [usize; 4] = [35, 53, 1, 0];
+        let res = bucket_sort(&arr);
+        assert!(is_sorted(&res));
+    }
+
+    #[test]
+    fn odd_number_of_elements() {
+        let arr: Vec<usize> = vec![1, 21, 5, 11, 58];
+        let res = bucket_sort(&arr);
+        assert!(is_sorted(&res));
+    }
+
+    #[test]
+    fn repeated_elements() {
+        let arr: Vec<usize> = vec![542, 542, 542, 542];
+        let res = bucket_sort(&arr);
+        assert!(is_sorted(&res));
+    }
+}
+```
+
+# 鸡尾酒排序
+
+## 代码实现(涵盖详细文档注释)
+
+```rust
+/// 鸡尾酒排序Cocktail Sort(双向冒泡排序Bidirectional Bubble Sort)
+/// 冒泡排序不同的地方在于，鸡尾酒排序通过从左到右和从右到左交
+/// 具体实现步骤如下：
+///
+/// 1.初始化边界变量 start 和 end，分别指向待排序序列的起始和结束位置；
+/// 2.创建一个布尔型变量 swapped，用于标记本轮迭代是否有元素交换发生；
+/// 3.进入循环，直到一轮迭代没有任何交换发生为止：
+///   · 从 start 到 end-1，对当前位置和下一个位置的元素进行比较，如果前一个元素大于后一个元素，则交换它们，并将 swapped 设置为 true；
+///   · 如果 swapped 仍然为 false，表示本轮迭代没有元素交换，排序完成，退出循环；
+///   · 将 swapped 重置为 false；
+///   · 将 end 减小 1，表示已经将最大的元素放置到了正确的位置上；
+///   · 从 end 到 start+1，对当前位置和前一个位置的元素进行比较，如果前一个元素大于后一个元素，则交换它们，并将 swapped 设置为 true；
+///   · 将 swapped 重置为 false；
+///   · 将 start 增加 1，表示已经将最小的元素放置到了正确的位置上；替地进行元素比较和交换，而不仅仅是从左到右
+/// 鸡尾酒排序在某些情况下可以减少排序的回合数，特别是对于一些部分有序的数组，因为它可以从两个方向同时进行元素交换。
+/// 然而，需要注意的是，鸡尾酒排序的最坏时间复杂度仍然是O(n^2)，与冒泡排序相同。因此，在实际应用中，对于大数据集合，更常见的排序算法（如快速排序或归并排序）可能更具效率。
+pub fn main() {
+    let mut arr = [4, 1, 3, 1, 5, 2];
+    cocktail_shaker_sort(&mut arr);
+    println!("{:?}", arr);
+}
+
+fn cocktail_shaker_sort<T: Ord>(arr: &mut [T]) {
+    let len = arr.len();
+
+    if len == 0 {
+        return;
+    }
+
+    loop {
+        let mut swapped = false;
+
+        // clamp() 方法用于将一个值限制在指定的范围内
+        for i in 0..(len - 1).clamp(0, len) {
+            if arr[i] > arr[i + 1] {
+                arr.swap(i, i + 1);
+                swapped = true;
+            }
+        }
+
+        if !swapped {
+            break;
+        }
+
+        swapped = false;
+
+        for i in (0..(len - 1)).rev() {
+            if arr[i] > arr[i + 1] {
+                arr.swap(i, i + 1);
+                swapped = true;
+            }
+        }
+
+        if !swapped {
+            break;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn basic() {
+        let mut arr = vec![5, 2, 1, 3, 4, 6];
+        cocktail_shaker_sort(&mut arr);
+        assert_eq!(arr, vec![1, 2, 3, 4, 5, 6]);
+    }
+
+    #[test]
+    fn empty() {
+        let mut arr = Vec::<i32>::new();
+        cocktail_shaker_sort(&mut arr);
+        assert_eq!(arr, vec![]);
+    }
+
+    #[test]
+    fn one_element() {
+        let mut arr = vec![1];
+        cocktail_shaker_sort(&mut arr);
+        assert_eq!(arr, vec![1]);
+    }
+
+    #[test]
+    fn pre_sorted() {
+        let mut arr = vec![1, 2, 3, 4, 5, 6];
+        cocktail_shaker_sort(&mut arr);
+        assert_eq!(arr, vec![1, 2, 3, 4, 5, 6]);
+    }
+}
+```

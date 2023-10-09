@@ -1,0 +1,270 @@
+---
+title: Rust入门笔记(五)
+date: '2023-6-18'
+tags: ['Rust', 'Rust入坑系列']
+draft: false
+summary: 'Rust 错误处理 panic & Result'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={2} />
+
+# `panic`的被动触发和主动调用(处理不可恢复错误)
+
+## 被动触发
+
+下面这段代码就是会因为数组越界调用由编译器`被动触发` `panic`
+
+```rust
+fn main() {
+    let v = vec![1, 2, 3];
+
+    v[99];
+}
+```
+
+## 主动调用
+
+可以使用 Rust 提供的 `panic!` 宏主动抛出一个异常,当调用执行该宏时,程序会打印出一个错误信息,展开报错点往前的函数调用堆栈,最后退出程序
+
+> 一定是不可恢复的错误,才调用 `panic!` 处理,你总不想系统仅仅因为用户随便传入一个非法参数就崩溃吧?所以,只有当你不知道该如何处理时,再去调用 `panic!`.
+
+```rust
+fn main() {
+    panic!("crash and burn");
+}
+```
+
+控制台打印如下:
+
+```
+thread 'main' panicked at 'crash and burn', src/main.rs:2:5
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+```
+
+- `main` 函数所在的线程崩溃了,发生的代码位置是 `src/main.rs` 中的第 2 行第 5 个字符(去除该行前面的空字符)
+- 在使用时加上一个环境变量可以获取更详细的栈展开信息:
+- Linux/macOS 等 UNIX 系统: `RUST_BACKTRACE=1 cargo run`
+- Windows 系统(PowerShell): `$env:RUST_BACKTRACE=1 ; cargo run`
+
+# `backtrace` 栈展开
+
+同样使用上面数组越界调用问题,使用上述栈展开方式看下控制台信息:
+
+```
+thread 'main' panicked at 'index out of bounds: the len is 3 but the index is 99', src/main.rs:4:5
+stack backtrace:
+   0: rust_begin_unwind
+             at /rustc/59eed8a2aac0230a8b53e89d4e99d55912ba6b35/library/std/src/panicking.rs:517:5
+   1: core::panicking::panic_fmt
+             at /rustc/59eed8a2aac0230a8b53e89d4e99d55912ba6b35/library/core/src/panicking.rs:101:14
+   2: core::panicking::panic_bounds_check
+             at /rustc/59eed8a2aac0230a8b53e89d4e99d55912ba6b35/library/core/src/panicking.rs:77:5
+   3: <usize as core::slice::index::SliceIndex<[T]>>::index
+             at /rustc/59eed8a2aac0230a8b53e89d4e99d55912ba6b35/library/core/src/slice/index.rs:184:10
+   4: core::slice::index::<impl core::ops::index::Index<I> for [T]>::index
+             at /rustc/59eed8a2aac0230a8b53e89d4e99d55912ba6b35/library/core/src/slice/index.rs:15:9
+   5: <alloc::vec::Vec<T,A> as core::ops::index::Index<I>>::index
+             at /rustc/59eed8a2aac0230a8b53e89d4e99d55912ba6b35/library/alloc/src/vec/mod.rs:2465:9
+   6: world_hello::main
+             at ./src/main.rs:4:5
+   7: core::ops::function::FnOnce::call_once
+             at /rustc/59eed8a2aac0230a8b53e89d4e99d55912ba6b35/library/core/src/ops/function.rs:227:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+```
+
+上面的代码就是一次栈展开(也称栈回溯),它包含了函数调用的顺序,当然按照逆序排列: 最近调用的函数排在列表的最上方.因为咱们的 `main` 函数基本是最先调用的函数了,所以排在了倒数第二位,还有一个关注点,排在最顶部最后一个调用的函数是 `rust_begin_unwind`,该函数的目的就是进行栈展开,呈现这些列表信息给我们
+
+# `panic` 的两种终止方式
+
+出现 `panic!` 时,提供了两种方式来处理终止流程: `栈展开(默认)` 和 `直接终止`
+
+默认方式下 `Rust` 会回溯栈上数据和函数调用,因此也意味着更多的善后工作,好处是可以给出充分的报错信息和栈调用信息,便于事后的问题复盘.直接终止,顾名思义,不清理数据就直接退出程序,善后工作交与操作系统来负责
+
+对于绝大多数用户,使用默认选择是最好的,但是当你关心最终编译出的二进制可执行文件大小时,那么可以尝试去使用直接终止的方式,例如下面的配置修改 `Cargo.toml` 文件,实现在 `release` 模式下遇到 `panic` 直接终止:
+
+```toml
+# Cargo.toml
+[profile.release]
+panic = 'abort'
+```
+
+## 线程 `panic` 后,程序是否会终止
+
+暂时不具体探究,总结下如果是 `main` 线程,则程序会终止,如果是其它子线程,该线程会终止,但是不会影响 `main` 线程.因此,尽量不要在 `main` 线程中做太多任务,将这些任务交由子线程去做,就算子线程 `panic` 也不会导致整个程序的结束
+
+另外针对 `panic!` 则简单提一下两个 `api`: `unwrap()` 和 `expect()`
+
+- `unwrap()`: 成功则返回值,失败则 `panic`,总之不进行任何错误处理
+
+# `panic` 原理
+
+当调用 `panic!` 宏时,它会:
+
+1. 格式化 `panic` 信息,然后使用该信息作为参数,调用 `std::panic::panic_any()` 函数
+2. `panic_any` 会检查应用是否使用了 `panic hook`,如果使用了,该 `hook` 函数就会被调用(hook 是一个钩子函数,是外部代码设置的,用于在 panic 触发时,执行外部代码所需的功能)
+3. 当 `hook` 函数返回后,当前的线程就开始进行`栈展开`: 从 `panic_any` 开始,如果寄存器或者栈因为某些原因信息错乱了,那很可能该展开会发生异常,最终线程会直接停止,展开也无法继续进行
+4. 展开的过程是一帧一帧的去回溯整个栈,每个帧的数据都会随之被丢弃,但是在展开过程中,你可能会遇到被用户标记为 `catching` 的帧(通过 `std::panic::catch_unwind()` 函数标记),此时用户提供的 `catch` 函数会被调用,展开也随之停止: 当然,如果 `catch` 选择在内部调用 `std::panic::resume_unwind()` 函数,则展开还会继续
+
+还有一种情况,在展开过程中,如果展开本身 `panic` 了,那展开线程会终止,展开也随之停止
+
+一旦线程展开被终止或者完成,最终的输出结果是取决于哪个线程 `panic`: 对于 `main` 线程,操作系统提供的终止功能 `core::intrinsics::abort()` 会被调用,最终结束当前的 `panic 进程`;如果是其它子线程,那么子线程就会简单的终止,同时信息会在稍后通过 `std::thread::join()` 进行收集
+
+# Rust 的错误处理(可恢复错误) Result
+
+`Result` 是一种枚举(enum)类型,本身是定义在 `std::result` 中的,因为常用所以是在 `prelude` 中,使用时不用单独导入了
+
+泛型参数 T 代表成功时存入的正确值的类型,存放方式是 `Ok(T)`,E 代表错误时存入的错误值,存放方式是 `Err(E)`
+
+```rust
+enum Result<T, E> {
+    Ok(T),
+    // 失败的话将 Err(E) 中存放的错误信息 error 使用 panic 抛出来
+    Err(E),
+}
+```
+
+> 如何获知变量类型或者函数的返回类型
+
+> 第一种是查询标准库或者三方库文档
+> `VsCode` 中安装好 `rust-analyzer` 插件情况下,就可以在 `VSCode` 中很方便的通过代码跳转的方式查看代码,同时 `rust-analyzer` 插件还会对代码中的类型进行标注,非常方便好用！
+> 你还可以尝试故意标记一个错误的类型,然后让编译器告诉你
+
+# 错误处理
+
+```rust
+use std::fs::File;
+use std::io::ErrorKind;
+
+fn main() {
+    let f = File::open("hello.txt");
+
+    let f = match f {
+        Ok(file) => file,
+        Err(error) => match error.kind() {
+            ErrorKind::NotFound => match File::create("hello.txt") {
+                Ok(fc) => fc,
+                Err(e) => panic!("Problem creating the file: {:?}", e),
+            },
+            other_error => panic!("Problem opening the file: {:?}", other_error),
+        },
+    };
+}
+```
+
+上面代码在匹配出 `error` 后,又对 `error` 进行了详细的匹配解析,最终结果：
+
+如果是文件不存在错误 `ErrorKind::NotFound`,就创建文件,这里创建文件`File::create` 也是返回 `Result`,因此继续用 `match` 对其结果进行处理：创建成功,将新的文件句柄赋值给 f,如果失败,则 `panic`
+剩下的错误,一律 `panic`
+
+当然这样嵌套 `match` 匹配处理还是太啰嗦,且当逻辑太多可读性太差
+
+# `unwrap` 和 `expect`
+
+```rust
+use std::fs::File;
+
+// unwrap() 是失败就直接 panic
+fn main() {
+    let f = File::open("hello.txt").unwrap();
+}
+
+// 控制台信息
+// thread 'main' panicked at 'called `Result::unwrap()` on an `Err` value: Os { code: 2, kind: NotFound, message: "No such file or directory" }', src/main.rs:4:37
+// note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+```
+
+对比之下,`expect` 跟 `unwrap` 很像,也是遇到错误直接 `panic`, 但是会带上自定义的错误提示信息,相当于重载了错误打印的函数
+
+```rust
+use std::fs::File;
+
+fn main() {
+    let f = File::open("hello.txt").expect("Failed to open hello.txt");
+}
+
+// 控制台信息
+// thread 'main' panicked at 'Failed to open hello.txt: Os { code: 2, kind: NotFound, message: "No such file or directory" }', src/main.rs:4:37
+// note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+```
+
+# Rust 中的 `？`
+
+先说本质,Rust 中 `?` 其实也是一个宏,作用类似于 `match`
+
+```rust
+use std::fs::File;
+use std::io::{self, Read};
+
+fn read_username_from_file() -> Result<String, io::Error> {
+    // 打开文件,f是`Result<文件句柄,io::Error>`
+    let f = File::open("hello.txt");
+
+    let mut f = match f {
+        // 打开文件成功,将file句柄赋值给f
+        Ok(file) => file,
+        // 打开文件失败,将错误返回(向上传播)
+        Err(e) => return Err(e),
+    };
+    // 创建动态字符串s
+    let mut s = String::new();
+    // 从f文件句柄读取数据并写入s中
+    match f.read_to_string(&mut s) {
+        // 读取成功,返回Ok封装的字符串
+        Ok(_) => Ok(s),
+        // 将错误向上传播
+        Err(e) => Err(e),
+    }
+}
+```
+
+```rust
+use std::fs::File;
+use std::io;
+use std::io::Read;
+
+fn read_username_from_file() -> Result<String, io::Error> {
+    let mut s = String::new();
+    let mut f = File::open("hello.txt")?;
+    f.read_to_string(&mut s)?;
+    Ok(s)
+}
+```
+
+对比上面两种分别使用 `match` 和 `?` 实现读取文件的方式
+
+# 为什么 `?` 好用
+
+标准库中的 `std::io::Error` 和 `std::error::Error`,前者是 IO 相关的错误结构体,后者是一个最最通用的标准错误特征,同时前者实现了后者,因此 `std::io::Error` 可以转换为 `std:error::Error`
+
+而 `?` 就可以进行自动类型转换,结合代码理解:
+
+```rust
+// Box<dyn std::error::Error> 中 dyn std::error::Error 表示实现了 std::error::Error trait 的类型
+fn open_file() -> Result<File, Box<dyn std::error::Error>> {
+    let mut f = File::open("hello.txt")?; // File::open() 返回值是 std::io::Error 类型
+    Ok(f)
+}
+```
+
+根本原因是在于标准库中定义的 `From trait`，该特征有一个方法 `from`，用于把一个类型转成另外一个类型，`?` 可以自动调用该方法，然后进行隐式类型转换。因此只要函数返回的错误 `ReturnError` 实现了 `From<OtherError>` 特征，那么 `?` 就会自动把 `OtherError` 转换为 `ReturnError`
+
+再将上面代码精简如下(使用`?.`的链式调用):
+
+```rust
+use std::fs::File;
+use std::io;
+use std::io::Read;
+
+fn read_username_from_file() -> Result<String, io::Error> {
+    let mut s = String::new();
+
+    File::open("hello.txt")?.read_to_string(&mut s)?;
+
+    Ok(s)
+}
+```
+
+切记: `?` 操作符需要一个变量来承载正确的值

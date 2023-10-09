@@ -1,0 +1,195 @@
+---
+title: Golang的一些东西(四)
+date: 2023-05-22T19:52:14Z
+tags: ['Golang']
+draft: false
+summary: '浅学一下Golang,第四篇,etc...'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={2} />
+
+# `make`方法
+
+go的内置函数,主要用于初始化`slice`、`map`、`channel`
+
+# 切片(slice)
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+	var course []string
+	fmt.Printf("%T\r\n", course)
+
+	// 注入元素
+	course = append(course, "ONE OK ROCK")
+	course = append(course, "aimyon")
+
+	fmt.Println(course)
+	// 取值
+	fmt.Println(course[1])
+
+	// 切片初始化的方法
+	// 1.从数组直接创建
+	courses := []string{"HTML", "CSS", "JavaScript"}
+	// coursesSlice := courses[0:1] // 左闭右开
+	coursesSlice := courses[0:] // 或者[0:len(courses)] 获取整个courses切片
+	fmt.Println(coursesSlice)
+	// 2.使用string{}
+	// 	var courses []string = []string{"HTML", "CSS", "JavaScript"}
+	// 3.make函数
+	courses2 := make([]string, 3) // 但是会有大小的限制
+	courses2[0] = "Golang"
+	courses2[1] = "grpc"
+	courses2[2] = "gin"
+	fmt.Println(courses2)
+
+	// 合并slice
+	courses = append(courses, courses2...)
+	fmt.Println(courses)
+
+	// 删除slice的元素，删除index为2的元素
+	courses = append(courses[:2], courses[3:]...)
+	fmt.Println(courses)
+
+	// 复制slice
+	// coursesCopy := courses
+	coursesCopy2 := courses[:]
+	// // 这种方式本质！！不是！！对原来切片的拷贝
+	// fmt.Println(coursesCopy, coursesCopy2)
+
+	var coursesCopy3 []string
+	copy(coursesCopy3, courses)
+	fmt.Println(coursesCopy3) // []  因为copy 不会对coursesCopy做扩容
+	// 所以需要使用make对size做限定
+	var coursesCopy4 = make([]string, len(courses))
+	copy(coursesCopy4, courses)
+	fmt.Println(coursesCopy4)
+
+	// 对比两种拷贝方式的本质
+	courses[1] = "Rust"
+	fmt.Println(coursesCopy2) // [HTML Rust Golang grpc gin] 所以这种方式不算拷贝原slice
+	fmt.Println(coursesCopy4) // [HTML CSS Golang grpc gin] 这种方式才是对原slice的拷贝
+}
+```
+
+# slice的底层原理
+
+本质是一个`struct`结构体,且 go 的`slice`在函数参数传递的时候是值传递,效果又呈现出了引用的效果(但不完全是)
+可以理解为是一个动态数组,会根据存储数据扩容,需要连续内存
+
+```go
+type slice struct {
+  array unsafe.Pointer // 用来存储实际数据的数组指针,指向一块连续的内存
+  len int              // 切片中元素的数量
+  cap int              // array数组的长度
+}
+```
+
+# map
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+	// map是一个键值对形式的无序集合,主要是查询方便快速 O(1)时间复杂度
+	// map的初始化赋值
+	var band = map[string]string{
+		"vocal":   "taka",
+		"guitar":  "toru",
+		"bassist": "ryota",
+		"drummer": "tomoya", // 换行句末必须加逗号
+	}
+	// 取值方法
+	fmt.Println(band["vocal"])
+	fmt.Printf("%T\r\n", band) // map[string]string
+
+	// 存储
+	band["song"] = "neon"
+	band["album"] = "Ambition"
+
+	fmt.Println(band)
+
+	// 注意点,map存值必须定义且初始化
+	// var singer map[string]string // 因为声明未初始化的map此时为 nil 即空值,所以赋值会 panic
+	// singer["name"] = "aimyon"    // panic: assignment to entry in nil map
+
+	// 另一种初始化方法, make 函数
+	var singer = make(map[string]string, 1)
+	singer["name"] = "aimyon"
+
+	fmt.Println(singer)
+
+	// 遍历map
+	for k, v := range band {
+		fmt.Println(k, v)
+	}
+	// 因为map是无序的,所以多次打印时候顺序不是一定的
+	// 判断map是否存在元素
+	if _, ok := band["sing"]; ok {
+		fmt.Println("存在")
+	}
+
+	// 删除map元素:
+	// 1. delete(map, key)方法
+	delete(band, "song")
+	fmt.Println(band)
+}
+```
+
+# list:链表
+
+空间不连续;性能差异大;查询速度慢
+
+```go
+package main
+
+import (
+	"container/list"
+	"fmt"
+)
+
+func main() {
+	// go提供的是双向链表
+	// 两种初始化方式
+	var myList list.List
+	myList2 := list.New()
+
+	myList.PushBack("go")
+	myList.PushBack("grpc")
+	myList.PushBack("gin")
+
+	myList2.PushFront("HTML")
+	myList2.PushFront("CSS")
+	myList2.PushFront("JavaScript")
+	fmt.Println(myList)
+	fmt.Println(myList2)
+
+	// 插入
+	i := myList.Front()
+	for ; i != nil; i = i.Next() {
+		if i.Next().Value.(string) == "grpc" {
+			break
+		}
+	}
+	myList.InsertBefore("rust", i)
+	// 删除元素,此处为Next值为"grpc"的元素,即"go"
+	myList.Remove(i)
+
+	// 遍历打印值,正向
+	// for i := myList.Front(); i != nil; i = i.Next() {
+	// 	fmt.Println("back: ", i.Value)
+	// }
+	// 反向遍历
+	for i := myList.Back(); i != nil; i = i.Prev() {
+		fmt.Println("prev: ", i.Value)
+	}
+}
+```

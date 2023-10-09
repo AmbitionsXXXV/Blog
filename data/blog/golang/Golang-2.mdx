@@ -1,0 +1,162 @@
+---
+title: Golang的一些东西(二)
+date: 2023-05-19T17:39:14Z
+tags: ['Golang']
+draft: false
+summary: '浅学一下Golang,第二篇,etc...'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={2} />
+
+# Golang的枚举
+
+## 自增枚举
+
+```go
+package main
+
+import (
+	"fmt"
+)
+
+func enums() {
+	const (
+		cpp = iota
+		_
+		python
+		golang
+		javascript
+	)
+
+  const (
+		b = 1 << (10 * iota)
+		kb
+		mb
+		gb
+		tb
+		pb
+	)
+
+	fmt.Println(cpp, python, golang, javascript)
+	fmt.Println(b, kb, mb, gb, tb, pb)
+}
+
+func main() {
+	fmt.Println("ONE OK ROCK")
+	enums()
+}
+```
+
+## iota
+
+- 如果中断了`iota`必须显式的恢复,后续会自动递增
+- 自增类型默认是`int`类型
+- `iota`能简化`const`类型的定义
+- 每次出现`const`的时候,`iota`会重新初始化值
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+	// iota 特殊常量.可以认为是一个可以被编译器修改的常量
+	const (
+		ERR1 = iota // 0
+		// ERR2 中断了 iota
+		ERR2 = "aimyon" // aimyon
+		ERR3            // aimyon
+		ERR4
+		// ERR5 中断iota后需要手动恢复 iota,同时中间被中断的过程,iota内部也会执行递增
+		ERR5 = iota // 4
+	)
+
+  const (
+    // 重新初始化值, iota也会重新初始化
+    ERRNEW1 = iota // 0
+  )
+
+	fmt.Println(ERR1, ERR2, ERR3, ERR4)
+}
+```
+
+# 读取文件
+
+```go
+package main
+
+import (
+	"fmt"
+	"io/ioutil"
+)
+
+func main() {
+	const filename = "oor.txt"
+	// 缩略写法
+  // 同时 Golang中 if 语句可以赋值,同时声明变量的作用域只在 if语句内
+	if contents, err := ioutil.ReadFile(filename); err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Printf("%s\n", contents)
+	}
+	// if err != nil {
+	// 	fmt.Println(err)
+	// } else {
+	// 	fmt.Printf("%s\n", contents)
+	// }
+}
+```
+
+## 简单说下`nil`
+
+`Golang`中的`nil`简单来说就是某一数据类型的零值,常用的错误处理里`if err!=nil{}`表示`err`不为空,需要做对应处理
+
+# 类型转换
+
+`string`转换为其他类型都是需要处理错误的,因为难以预料未知的转换错误
+
+```go
+package main
+
+import (
+	"fmt"
+	"strconv"
+)
+
+func main() {
+	var myStr = "12"
+	myInt, err := strconv.Atoi(myStr)
+	if err != nil {
+		fmt.Println("Conv error")
+	}
+	fmt.Println(myInt)
+
+  // 数字转字符串在 Go 里不会发生错误,所以不需要处理err
+  var myInt2 = 36
+	myStr2 := strconv.Itoa(myInt2)
+	fmt.Printf("%T\n", myStr2) // string
+	fmt.Println(myStr2)
+
+  // string转换为float32,bool
+	myFloat, err := strconv.ParseFloat("3636", 32)
+	if err != nil {
+		fmt.Println("Conv float error")
+	}
+	fmt.Println(myFloat)
+
+  // 转换为int, strconv.ParseInt(字符串,进制,位数)
+	parseInt, err := strconv.ParseInt("10969", 10, 64)
+	if err != nil {
+		return
+	}
+	fmt.Println(parseInt)
+
+  // 基本类型转字符串
+	boolStr := strconv.FormatBool(false)
+	fmt.Printf("%T\n", boolStr)
+	fmt.Println(boolStr)
+}
+```

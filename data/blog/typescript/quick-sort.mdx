@@ -1,0 +1,55 @@
+---
+title: 快速排序笔记以及实现
+date: 2023-02-24T10:32:24Z
+tags: ['TypeScript', '排序算法', '快速排序', 'Algorithm']
+draft: false
+summary: '快速排序并基于TypeScript实现快速排序'
+authors: ['default']
+---
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={2} />
+
+## 基本思路
+
+- 将一个大数组分成两个小数组,然后递归的对两个小数组进行排序(这里和归并差不多意思)
+
+- 具体实现:
+
+  - 通过选择一个基准元素,将数组分成左右两部分,左侧元素都小于或等于基准元素,右侧都大于基准元素
+
+  - 然后对左右两部分分别进行递归快速排序,实现整体排序
+
+![快速排序图解](/blog/快速排序.png)
+
+```ts:quickSort.ts
+function quickSort(arr: number[]): number[] {
+  partition(0, arr.length - 1);
+
+  function partition(left: number, right: number) {
+    if (left >= right) return;
+
+    const pivot = arr[right];
+    let i = left;
+    let j = right - 1;
+    while (i <= j) {
+      while (arr[i] < pivot) {
+        i++;
+      }
+      while (arr[j] > pivot) {
+        j--;
+      }
+      if (i <= j) {
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+        i++;
+        j--;
+      }
+    }
+
+    [arr[i], arr[right]] = [arr[right], arr[i]];
+    partition(left, j);
+    partition(i + 1, right);
+  }
+
+  return arr;
+}
+```

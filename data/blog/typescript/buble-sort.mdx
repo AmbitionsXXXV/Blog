@@ -1,0 +1,67 @@
+---
+title: 冒泡排序笔记以及实现
+date: 2023-02-20T11:39:14Z
+tags: ['TypeScript', '排序算法', '冒泡排序', 'Algorithm']
+draft: false
+summary: '介绍冒泡排序并基于TypeScript实现冒泡排序'
+authors: ['default']
+---
+
+## 思路
+
+- 通过两两比较相邻的元素并交换他们的位置,从而使整个序列按顺序排列
+
+- 一次冒泡排序后,最大值总会移到数组最后面,所以下一次冒泡排序后,该最大值就不用参加比较
+
+- 然后一直递归该过程,完成排序
+
+```ts:bubbleSort.ts
+// 第一版(强硬版)
+function bubbleSort(arr: number[]): number[] {
+  const n = arr.length
+
+  for (let i = 0; i < n ; i++) {
+    for (let j = 0; j < n - i - 1; j++) {
+      if (arr[j] > arr[j + 1]) {
+        // ES6的新语法 用于元素交换
+        [arr[j], arr[j + 1]] = [arr[j + 1], arr[j]]
+      }
+    }
+  }
+
+  return arr
+}
+```
+
+性能优化:当某一次遍历从未交换过顺序(即该轮剩余数顺序正确)
+
+```ts:bubbleSort.ts
+// 第二版(性能优化版)
+function bubbleSort(arr: number[]): number[] {
+  const n = arr.length
+  // 长度为1时不用排序
+  for (let i = 0; i < n - 1 ; i++) {
+    let swapped = false
+
+    for (let j = 0; j < n - i - 1; j++) {
+      if (arr[j] > arr[j + 1]) {
+        // ES6的新语法 用于元素交换
+        [arr[j], arr[j + 1]] = [arr[j + 1], arr[j]]
+        swapped = true
+      }
+    }
+
+    if(!swapped) break
+  }
+
+  return arr
+}
+```
+
+时间复杂度:
+
+- 最好情况:已经为顺序时,时间复杂度为 O(n)
+
+- 最坏情况:倒序时,时间复杂度为 O(n^2)
+
+所以大数据量情况下,冒泡排序性能消耗太严重,一般不会使用

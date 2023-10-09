@@ -1,0 +1,320 @@
+---
+title: 重学webpack(三) -- Babel 配置 & webpack 源码阅读
+date: '2023-10-3'
+tags: ['webpack']
+draft: false
+summary: '重学webpack 第 3 部分 -- Babel 配置 & webpack 源码阅读'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={4} />
+
+# Babel 配置
+
+一般可以通过 `babel.config.js(.cjs/.mjs)` 或者 `.babelrc` 文件来配置 babel。
+
+## polyfill
+
+`polyfill` 是一个兼容性的概念，是指在不支持某些特性的浏览器中，通过引入 polyfill 来实现这些特性. 例如，`Promise` 是 ES6 的特性，但是在 IE11 中是不支持的，所以我们可以通过引入 `core-js` 来实现 `Promise` 的兼容性。
+
+## 使用 polyfill
+
+`babel7.4.0` 之前，我们可以通过 `@babel/polyfill` 来引入 polyfill，但是在`babel7.4.0` 之后，`@babel/polyfill` 被废弃，推荐使用 `core-js` 和 `regenerator-runtime`。
+
+`babel7.13.0` 之后，`core-js` 和 `regenerator-runtime` 也被废弃，推荐使用 `core-js@3` 和 `@babel/runtime`。 `@babel/runtime` 是一个运行时的依赖，`core-js@3` 是一个开发时的依赖。
+
+# webpack 源码阅读 - compiler 创建过程
+
+## 准备工作
+
+1. `git clone` webpack 源码
+2. `yarn install`
+3. 在根目录新建一个自己的文件夹
+4. 在自己的文件夹中新建一个 `webpack.config.js` 文件
+
+   ```js
+   const path = require('path')
+
+   module.exports = {
+     mode: 'development',
+     devtool: 'source-map',
+     context: path.resolve(__dirname, '.'),
+     entry: './src/main.js',
+     output: {
+       filename: 'bundle.js',
+       path: path.resolve(__dirname, 'dist'),
+       clean: true,
+     },
+     module: {
+       rules: [
+         {
+           test: /\.m?js$/,
+           use: 'babel-loader',
+         },
+       ],
+     },
+     plugins: [],
+   }
+   ```
+
+5. 在自己的文件夹中新建一个 `src` 文件夹,写一点代码
+
+   ```js:src/main.js
+   import { add } from './utils/util'
+
+   console.log(add(1, 2))
+   console.log('Aimyon')
+   ```
+
+   ```js:src/utils/util.js
+   export const add = (a, b) => a + b
+   ```
+
+   又在自己文件夹的根目录下(src 同级目录),新建 `build.js`
+
+   ```js showLineNumbers {6}
+   const webpack = require('../lib/webpack')
+   const config = require('./webpack.config')
+
+   // 创建一个对象: compiler
+   // 另外一个对象: compilation
+   const compiler = webpack(config)
+
+   // 执行 run 方法，对代码进行编译和打包
+   compiler.run((err, stats) => {
+     if (err) {
+       console.log(err)
+     } else {
+       console.log(stats)
+     }
+   })
+   ```
+
+6. 然后开始在 `build.js` 高亮行打断点，进入 `webpack` 源码 `debug`
+
+### webpack 源码阅读
+
+#### create
+
+```js:webpack/lib/webpack.js showLineNumbers {7-8,19-25,41,44,45,54-55}
+const webpack = /** @type {WebpackFunctionSingle & WebpackFunctionMulti} */ (
+  /**
+   * @param {WebpackOptions | (ReadonlyArray<WebpackOptions> & MultiCompilerOptions)} options options
+   * @param {Callback<Stats> & Callback<MultiStats>=} callback callback
+   * @returns {Compiler | MultiCompiler} Compiler or MultiCompiler
+   */
+  // 此时前面传入的自定义 config 就是作为 options 参数传递进来
+  (options, callback) => {
+    const create = () => {
+      if (!asArray(options).every(webpackOptionsSchemaCheck)) {
+        getValidateSchema()(webpackOptionsSchema, options)
+        util.deprecate(
+          () => {},
+          'webpack bug: Pre-compiled schema reports error while real schema is happy. This has performance drawbacks.',
+          'DEP_WEBPACK_PRE_COMPILED_SCHEMA_INVALID'
+        )()
+      }
+      /** @type {MultiCompiler|Compiler} */
+      // 初始化 compiler 对象,这里的 compiler 就是我们在 build.js 中创建的 compiler
+      // 1. 读取配置文件 (配置文件中包含了我们需要的信息 webpack.config.js)
+      // 2. 根据配置文件创建 compilation 对象 (compilation 对象中包含了我们需要的信息 例如: entry, output, module, plugins 等等)
+      // 3. 根据 compilation 对象生成 bundle 文件 (bundle 文件就是我们在 dist 目录下生成的 bundle.js)
+      // 4. 生成 bundle 文件后,执行 callback 回调函数 (callback 回调函数中的 err 和 stats 就是我们在 build.js 中的 err 和 stats)
+      // 5. callback 中的 stats 就是我们在 build.js 中的 stats 对象 (stats 对象中包含了我们需要的信息)
+      // 6. stats 中包含了我们需要的信息 (例如: hash, time, errors, warnings 等等)
+      let compiler
+      /** @type {boolean | undefined} */
+      let watch = false
+      /** @type {WatchOptions|WatchOptions[]} */
+      let watchOptions
+      // 这段逻辑表示可以通过数组传入多个配置,不过目前只传递了一个,所以暂时走另外一段逻辑
+      if (Array.isArray(options)) {
+        /** @type {MultiCompiler} */
+        compiler = createMultiCompiler(
+          options,
+          /** @type {MultiCompilerOptions} */ (options)
+        )
+        watch = options.some((options) => options.watch)
+        watchOptions = options.map((options) => options.watchOptions || {})
+      } else {
+        // 单个配置处理逻辑
+        const webpackOptions = /** @type {WebpackOptions} */ (options)
+        /** @type {Compiler} */
+        // 通过 createCompiler 创建 compiler 对象
+        compiler = createCompiler(webpackOptions)
+        watch = webpackOptions.watch
+        watchOptions = webpackOptions.watchOptions || {}
+      }
+      return { compiler, watch, watchOptions }
+    }
+    if (callback) {
+      ...
+    } else {
+      // 最终就是进入这段代码逻辑,因为我们没有传入 callback
+      const { compiler, watch } = create()
+      if (watch) {
+        util.deprecate(
+          () => {},
+          "A 'callback' argument needs to be provided to the 'webpack(options, callback)' function when the 'watch' option is set. There is no way to handle the 'watch' option without a callback.",
+          'DEP_WEBPACK_WATCH_WITHOUT_CALLBACK'
+        )()
+      }
+      return compiler
+    }
+  }
+)
+```
+
+#### createCompiler
+
+```js:webpack/lib/webpack.js showLineNumbers {8-13,15-19,21-44}
+/**
+ * @param {WebpackOptions} rawOptions options object
+ * @returns {Compiler} a compiler
+ */
+const createCompiler = rawOptions => {
+	const options = getNormalizedWebpackOptions(rawOptions);
+	applyWebpackOptionsBaseDefaults(options);
+  // 1. 创建一个 Compiler 实例
+  // 这个位置我们再添加一个断点，然后重新调试
+	const compiler = new Compiler(
+		/** @type {string} */ (options.context),
+		options
+	);
+
+  // 将 NodeEnvironmentPlugin 应用到 compiler 上，并传入 options.infrastructureLogging 作为参数。
+  // NodeEnvironmentPlugin 是用于设置Webpack的环境的插件，通过调用apply方法将其应用到compiler上，以便在Webpack构建过程中进行必要的环境设置和日志记录
+	new NodeEnvironmentPlugin({
+		infrastructureLogging: options.infrastructureLogging
+	}).apply(compiler);
+
+  // 2. 注册所有 webpack plugin
+  // 具体作用是遍历options.plugins数组中的每个元素，然后根据元素的类型进行不同的处理。如果元素是一个函数，那么调用该函数并传入compiler作为参数；
+  // 如果元素是一个对象，那么调用该对象的apply方法并传入compiler作为参数。这样可以对插件进行初始化和应用。
+	if (Array.isArray(options.plugins)) {
+		for (const plugin of options.plugins) {
+			if (typeof plugin === "function") {
+				// 如果 plugin 是一个函数，则调用它并传入 compiler 作为参数
+				plugin.call(compiler, compiler);
+			} else if (plugin) {
+				// 如果 plugin 是一个对象，则调用它的 apply 方法并传入 compiler 作为参数
+				plugin.apply(compiler);
+			}
+		}
+	}
+	// 应用默认的 webpack 配置选项
+	applyWebpackOptionsDefaults(options);
+	// 触发 environment 钩子
+	compiler.hooks.environment.call();
+	// 触发 afterEnvironment 钩子
+	compiler.hooks.afterEnvironment.call();
+	// 创建 WebpackOptionsApply 实例并调用其 process 方法，传入 options 和 compiler 作为参数
+	new WebpackOptionsApply().process(options, compiler);
+	// 触发 initialize 钩子
+	compiler.hooks.initialize.call();
+
+	return compiler;
+};
+```
+
+#### Compiler
+
+```js:webpack/lib/Compiler.js showLineNumbers {10-18}
+const {
+	SyncHook,
+	SyncBailHook,
+	AsyncParallelHook,
+	AsyncSeriesHook
+} = require("tapable");
+
+class Compiler {
+  constructor(context, options = /** @type {WebpackOptions} */ ({})) {
+    // 创建 compiler 实例的时候,会执行这里的代码, 也就是说我们在 build.js 中创建的 compiler 实例,就是通过这里的代码创建的
+    // 其中 hooks 会依赖 tapable 这个库,这个库是 webpack 的核心库,webpack 中的很多功能都是通过这个库来实现的
+    // hooks怎么依赖 tapable 的呢
+    // 1. 在 webpack/lib/Compiler.js 中引入 tapable
+    // 2. 在 webpack/lib/Compiler.js 中定义了一些 hooks
+    // 3. 在 webpack/lib/Compiler.js 中通过 Object.freeze() 方法冻结了 hooks
+    // 4. 在 webpack/lib/webpack.js 中引入了 webpack/lib/Compiler.js
+    // 5. 在 webpack/lib/webpack.js 中通过 new Compiler() 创建了 compiler 实例
+    // 6. 在 webpack/lib/webpack.js 中通过 compiler.run() 方法执行了 compiler.run() 方法
+    this.hooks = Object.freeze({
+      // 几个比较关键的 hooks
+      /** @type {SyncHook<[]>} */
+			initialize: new SyncHook([]),
+
+      /** @type {AsyncSeriesHook<[Compiler]>} */
+			run: new AsyncSeriesHook(["compiler"]),
+
+      /** @type {SyncHook<[CompilationParams]>} */
+			compile: new SyncHook(["params"]),
+      ...
+    })
+  }
+}
+```
+
+`Compiler` 的构造函数中,会执行 `this.hooks = Object.freeze({})` 这段代码,这段代码中的 `hooks` 就是我们在 `webpack/lib/Compiler.js` 中定义的 `hooks`。
+
+    1. 创建 `hook`
+    2. 监听事件(可以是一堆事件)
+    3. 使用 `hook` 发送事件
+
+#### NodeEnvironmentPlugin
+
+```js:webpack/lib/node/NodeEnvironmentPlugin.js showLineNumbers
+// 作用是给 compiler 添加了一些属性和方法，比如 hooks 和 run 方法
+class NodeEnvironmentPlugin {
+  /**
+   * @param {Object} options options
+   * @param {InfrastructureLogging} options.infrastructureLogging infrastructure logging options
+   */
+  constructor(options) {
+    this.options = options
+  }
+  ...
+}
+```
+
+#### new WebpackOptionsApply().process(options, compiler);
+
+目录 `webpack/lib/WebpackOptionsApply`
+
+```js
+class WebpackOptionsApply extends OptionsApply {
+  constructor() {
+    super()
+  }
+
+  process(options, compiler) {
+    compiler.outputPath = options.output.path
+    compiler.recordsInputPath = options.recordsInputPath || null
+    compiler.recordsOutputPath = options.recordsOutputPath || null
+    compiler.name = options.name
+
+    ...
+    if (!options.experiments.outputModule) {
+			if (options.output.module) {
+				throw new Error(
+					"'output.module: true' is only allowed when 'experiments.outputModule' is enabled"
+				);
+			}
+			if (options.output.enabledLibraryTypes.includes("module")) {
+				throw new Error(
+					"library type \"module\" is only allowed when 'experiments.outputModule' is enabled"
+				);
+			}
+			if (options.externalsType === "module") {
+				throw new Error(
+					"'externalsType: \"module\"' is only allowed when 'experiments.outputModule' is enabled"
+				);
+			}
+		}
+    ...
+  }
+}
+```
+
+可以从 `webpack/lib/WebpackOptionsApply` 中看到,`process` 方法其实就是把我们在 `webpack.config.js` 中的 `options` 配置项，最后都转换为了 `plugin` 的形式然后挂载到了 `compiler` 上。

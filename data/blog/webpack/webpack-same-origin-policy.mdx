@@ -1,0 +1,239 @@
+---
+title: 重学webpack(一) -- 同源策略
+date: '2023-10-1'
+tags: ['webpack']
+draft: false
+summary: '重学webpack 第 1 部分 -- Same-origin policy'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={3} />
+
+## 同源策略是什么
+
+**同源策略**是一个重要的`安全策略`，它用于限制一个源的文档或者它加载的脚本如何能与另一个源的资源进行交互。
+
+它能帮助阻隔恶意文档，减少可能被攻击的媒介。例如，它可以防止互联网上的恶意网站在浏览器中运行 JS 脚本，从第三方网络邮件服务(用户已登录)或公司内网(因没有公共 IP 地址而受到保护，不会被攻击者直接访问)读取数据，并将这些数据转发给攻击者。
+
+又从技术发展层面来说，同源策略其实是`前后端分离模式`出现的产物，因为即使在现在的开发过程，服务端之间的资源传递、请求等是没有跨域问题的，所以同源策略主要是浏览器层面做出的安全措施
+
+### 源的定义
+
+如果两个 `URL` 的[协议](https://developer.mozilla.org/zh-CN/docs/Glossary/Protocol)、[端口](https://developer.mozilla.org/zh-CN/docs/Glossary/Port)(如果有指定的话)和[主机](https://developer.mozilla.org/zh-CN/docs/Glossary/Host)都相同的话，则这两个 URL 是同源的。这个方案也被称为`“协议/主机/端口元组”`，或者直接是`“元组”`。(“元组”是指一组项目构成的整体，具有双重/三重/四重/五重等通用形式。)
+
+下表给出了与 URL `http://store.company.com/dir/page.html` 的源进行对比的示例：
+
+| URL                                               | 结果 | 原因                              |
+| ------------------------------------------------- | ---- | --------------------------------- |
+| `http://store.company.com/dir2/other.html`        | 同源 | 只有路径不同                      |
+| `http://store.company.com/dir/inner/another.html` | 同源 | 只有路径不同                      |
+| `https://store.company.com/secure.html`           | 失败 | 协议不同                          |
+| `http://store.company.com:81/dir/etc.html`        | 失败 | 端口不同(`http://` 默认端口是 80) |
+| `http://news.company.com/dir/other.html`          | 失败 | 主机不同                          |
+
+### 源的继承
+
+在页面中通过 `about:blank` 或 `javascript:` URL 执行的脚本会继承打开该 URL 的文档的源，因为这些类型的 URL 没有包含源服务器的相关信息。
+
+## 跨源网络访问
+
+'同源策略控制不同源之间的交互，例如在使用 [XMLHttpRequest](https://developer.mozilla.org/zh-CN/docs/Web/API/XMLHttpRequest) 或 [img](https://developer.mozilla.org/zh-CN/docs/Web/HTML/Element/img) 标签时则会受到同源策略的约束。这些交互通常分为三类：
+
+- **跨源写操作**(Cross-origin writes)一般是被允许的。例如链接、重定向以及表单提交。特定少数的 HTTP 请求需要添加[预检请求](https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CORS#%E9%A2%84%E6%A3%80%E8%AF%B7%E6%B1%82)。
+- **跨源资源嵌入**(Cross-origin embedding)一般是被允许的。
+- **跨源读操作**(Cross-origin reads)一般是不被允许的，但常可以通过内嵌资源来巧妙的进行读取访问。例如，你可以读取嵌入图片的高度和宽度，调用内嵌脚本的方法，或[得知内嵌资源的可用性](https://bugzilla.mozilla.org/show_bug.cgi?id=629094)
+
+## 如何允许跨域访问
+
+可以使用 [CORS](https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CORS) 来允许跨源访问。`CORS` 是 `HTTP` 的一部分，它允许服务端来指定哪些主机可以从这个服务端加载资源。
+
+## 具体代码
+
+### 准备工作
+
+#### 先创建项目`webpack-same-origin`
+
+#### 然后在根目录创建 `src` 文件夹 📁
+
+`pnpm init && pnpm i koa @koa/router` 为启动服务做准备
+
+### 服务端代码
+
+```js:index.js
+const koa = require('koa')
+const koaRouter = require('@koa/router')
+
+const app = new koa()
+const router = new koaRouter()
+
+router.get('/list', (ctx, next) => {
+  ctx.body = [{ id: 111, name: 'aimyon' }]
+})
+
+app.use(router.routes())
+app.use(router.allowedMethods())
+
+app.listen(8000, () => {
+  console.log('server on http://localhost:8000')
+})
+```
+
+#### 然后在根目录创建 `dist` 文件夹 📁，以及 `index.html` 文件
+
+```html:index.html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Title</title>
+  </head>
+  <body>
+    <script>
+      //   1. XHR
+      const xhr = new XMLHttpRequest()
+      xhr.onreadystatechange = () => {
+        if (xhr.readyState === XMLHttpRequest.DONE) {
+          console.log(xhr.responseText)
+        }
+      }
+      xhr.open('get', 'http://localhost:8000/list')
+      xhr.send()
+
+      //   2.fetch
+      // fetch('http://localhost:8000/list').then(async (res) => {
+      //   const result = await res.json()
+      //   console.log('fetch>>>', result)
+      // })
+    </script>
+  </body>
+</html>
+```
+
+然后此时启动服务，打开 `index.html` 文件，会发现控制台报错 `Access to XMLHttpRequest at 'http://localhost:8000/' from origin 'null' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.`
+或者使用 `fetch` 时，会报错 `Access to fetch at 'http://localhost:8000/' from origin 'null' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.`
+
+#### 这就是同源策略的限制 🚫
+
+## 解决办法(实际场景下所有方法基本都是服务端解决)
+
+1. 服务端设置 `Access-Control-Allow-Origin` 头部(`CORS`)
+
+   ```js:index.js
+   const koa = require('koa')
+   const koaRouter = require('@koa/router')
+   const koaStatic = require('koa-static')
+
+   const app = new koa()
+
+   // app.use(koaStatic('./client'))
+
+   const router = new koaRouter()
+
+   router.get('/list', (ctx, _next) => {
+     // 只有简单请求(HEAD,GET,POST)可以只这么写
+     ctx.set('Access-Control-Allow-Origin', '*')
+     // 有非简单请求
+     ctx.set('Access-Control-Allow-Origin', '*')
+     // 为 cookie 准备
+     ctx.set('Access-Control-Allow-Credentials', true)
+     ctx.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
+     ctx.set(
+       'Access-Control-Allow-Headers',
+       'Accept,Accept-Encoding,Accept-Language,Connection,Content-Length,Content-Type,Host,Origin,Referer,User-Agent'
+     )
+     ctx.body = [{ id: 111, name: 'aimyon' }]
+   })
+
+   app.use(router.routes())
+   app.use(router.allowedMethods())
+
+   app.listen(8000, () => {
+     console.log('server on http://localhost:8000')
+   })
+   ```
+
+2. 最终线上项目一般都是用 `Nginx 反向代理`
+
+3. 将静态资源和 API 服务器部署在同一个服务器，例如将 `index.html` 作为静态资源部署到服务端, `pnpm i koa-static`
+
+   ```js:index.js
+   const koa = require('koa')
+   const koaRouter = require('@koa/router')
+   const koaStatic = require('koa-static')
+
+   const app = new koa()
+
+   app.use(koaStatic('./client'))
+
+   const router = new koaRouter()
+
+   router.get('/list', (ctx, _next) => {
+     ctx.body = [{ id: 111, name: 'aimyon' }]
+   })
+
+   app.use(router.routes())
+   app.use(router.allowedMethods())
+
+   app.listen(8000, () => {
+     console.log('server on http://localhost:8000/list')
+   })
+   ```
+
+4. 使用 `webpack-dev-server` 代理(本质就是开一个 node 服务，然后通过 `http-proxy-middleware` 中间件代理请求)
+
+   ```js:webpack.config.js
+   module.exports = {
+     devServer: {
+       proxy: {
+         '/api': {
+           target: 'http://localhost:8000',
+           pathRewrite: { '^/api': '' },
+           changeOrigin: true,
+         },
+       },
+     },
+   }
+   ```
+
+   ```js:index.html
+   fetch('/api/list').then(async (res) => {
+     const result = await res.json()
+     console.log('fetch>>>', result)
+   })
+   ```
+
+5. 使用 `webpack-dev-server` 的 `before` 配置
+
+   ```js:webpack.config.js
+   module.exports = {
+     devServer: {
+       before: (app) => {
+         app.get('/api/list', (req, res) => {
+           res.json([{ id: 111, name: 'aimyon' }])
+         })
+       },
+     },
+   }
+   ```
+
+6. 使用 `webpack-dev-server` 的 `after` 配置
+
+   ```js:webpack.config.js
+   module.exports = {
+     devServer: {
+       after: (app) => {
+         app.get('/api/list', (req, res) => {
+           res.json([{ id: 111, name: 'aimyon' }])
+         })
+       },
+     },
+   }
+   ```
+
+7. 另外还有 `window.postMessage`(不过不常用，但是 `MDN` 官网有提到，这就是纯前端解决方案)
+
+   为了能让不同源中的文档进行交流，可以使用 [window.postMessage](https://developer.mozilla.org/zh-CN/docs/Web/API/Window/postMessage)
+
+8. 通过 `websockt`, 因为 `websocket` 是基于 `TCP` 协议的，所以不受同源策略的限制

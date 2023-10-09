@@ -1,0 +1,164 @@
+---
+title: Golang的一些东西(三)
+date: 2023-05-21T15:52:14Z
+tags: ['Golang']
+draft: false
+summary: '浅学一下Golang,第三篇,etc...'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={3} />
+
+# `rune`类型
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+	// 长度计算
+	// name := "ONE OK ROCK"
+	// fmt.Println(len(name))
+	// 这种方式的话 如果字符串带中文,因为UTF-8 中一个中文3个 byte 所以结果会有出入
+	// name := "ONE OK ROCK"  // 11
+	name := "ONE OK ROCK乐队" // 17
+	bytes := []byte(name)
+	fmt.Println(len(bytes))
+
+	// 带中文的解决办法
+	singer := "爱缪"
+	// byte 类型改为使用 rune类型, rune 类型类似于 Rust中的 char类型，都是为了表示 Unicode 标量值的类型
+	runes := []rune(singer)
+	fmt.Println(len(runes)) // 2
+}
+```
+
+# 格式化输出
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+	fmt.Println("oor")
+	fmt.Print("oor\r\n")
+
+	band := "ONE OK ROCK"
+	year := 18
+	fmt.Println("This band is " + band)
+  // 两种同样效果的方式,第二种更方便后续修改
+	fmt.Printf("name: %s, time: %d", band, year)
+  // 性能需求不高时的首选
+  sprintfMsg := fmt.Sprintf("name: %s, time: %d", band, year)
+	fmt.Println(sprintfMsg)
+
+  // 通过 strings 的 builder 拼接字符串,高性能
+	var builder strings.Builder
+	builder.WriteString("name: ")
+	builder.WriteString(band)
+	builder.WriteString(", time: ")
+	builder.WriteString(strconv.Itoa(year))
+	res := builder.String()
+	fmt.Println(res)
+}
+```
+
+# `strings`包
+
+```go
+package main
+
+import (
+	"fmt"
+	"strings"
+)
+
+func main() {
+	band := "ONE OK ROCK"
+
+	// 是否包含
+	fmt.Println(strings.Contains(band, "ROCK"))
+
+	// 出现次数
+	fmt.Println(strings.Count(band, "O"))
+
+	// 分割字符串
+	fmt.Println(strings.Split(band, " "))
+}
+```
+
+# for range
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+	band := "ONE OK ROCK"
+
+	for index, value := range band {
+		// fmt.Println(index, value)
+		fmt.Printf("index: %d,value: %c,value: %c\n", index, value, band[index])
+	}
+}
+```
+
+# Go中的数组
+
+Go提供了数组、切片(slice)、map、list
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+	// 	数组定义
+	var courses [3]string // 数组, 只有3个string元素的数组
+	// var courses2 [4]string // 和上面是不同的类型
+	// 同时 []string 和 [3]string 是两种不同的类型 前者是切片(slice) 后者是数组
+
+	courses[0] = "go"
+	courses[1] = "gin"
+	courses[2] = "grpc"
+
+	// 遍历数组
+	for index, value := range courses {
+		fmt.Println(index, value)
+	}
+
+	// 数组初始化  var声明和短声明  常用
+	// var courses2 = [4]string{"javascript", "html", "css", "typescript"}
+	// courses2 := [4]string{"javascript", "html", "css", "typescript"}
+
+	courses2 := [4]string{2: "javascript"}
+	for _, course2 := range courses2 {
+		fmt.Println(course2)
+	}
+
+	courses3 := [...]string{"javascript", "html", "css", "typescript"}
+	for _, course3 := range courses3 {
+		fmt.Println("course3: ", course3)
+	}
+
+	fmt.Println(courses)
+	fmt.Printf("courses: %T\r\n", courses)   //  courses: [3]string
+	fmt.Printf("courses2: %T\r\n", courses2) //  courses2: [4]string
+
+	// 	多维数组
+	var arr [2][3]string
+	arr[0] = [3]string{"html", "css", "js"}
+	arr[1] = [3]string{"go", "gin", "docker"}
+	for _, value := range arr {
+		fmt.Println("value: ", value)
+		for _, v := range value {
+			fmt.Println(v)
+		}
+	}
+}
+```

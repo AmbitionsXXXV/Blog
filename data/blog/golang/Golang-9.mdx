@@ -1,0 +1,147 @@
+---
+title: Golang的一些东西(九)
+date: '2023-6-3'
+tags: ['Golang']
+draft: false
+summary: '浅学一下Golang,第九篇,etc...'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={2} />
+
+# 锁的本质
+
+将并行代码串行化,所以使用锁是会有额外性能开销的;所以即便是设计锁,也要尽量保证并行,保证性能
+
+# Go 的互斥锁
+
+```go
+package main
+
+import (
+	"fmt"
+	"sync"
+	"sync/atomic"
+)
+
+/*
+锁 - 资源竞争
+*/
+
+var wg sync.WaitGroup
+var total int32
+
+//var lock sync.Mutex
+
+// 对竞争状态,必须要是同一把锁
+// 所以锁不能复制,复制后就失去了对竞争状态的锁定
+func Add() {
+	defer wg.Done()
+	for i := 0; i < 100000; i++ {
+		atomic.AddInt32(&total, 1) // 这种简单的操作更多会使用 atomic 来进行,将整个操作变为原子操作
+		//lock.Lock()
+		//total += 1
+		//lock.Unlock()
+	}
+}
+
+func Sub() {
+	defer wg.Done()
+	for i := 0; i < 100000; i++ {
+		atomic.AddInt32(&total, -1)
+		//lock.Lock()
+		//total -= 1
+		//lock.Unlock()
+	}
+}
+
+func main() {
+	wg.Add(2)
+	go Add()
+	go Sub()
+	wg.Wait()
+	fmt.Printf("%d all done----", total) // 会因为竞争状态产生不确定的值, 加了锁之后执行结果永远为 0 了
+}
+```
+
+# Go 的读写锁
+
+```go
+package main
+
+import (
+	"fmt"
+	"sync"
+	"time"
+)
+
+func main() {
+	var rwLock sync.RWMutex
+	var wg sync.WaitGroup
+
+	wg.Add(2)
+	// 写的 goroutine
+	go func() {
+		defer wg.Done()
+		rwLock.Lock()
+		defer rwLock.Unlock()
+		time.Sleep(time.Second * 3)
+		fmt.Println("get write lock")
+	}()
+
+	time.Sleep(time.Second)
+
+	// 读的 goroutine
+	go func() {
+		defer wg.Done()
+		for {
+			rwLock.RLock() // 读锁不会阻止别人的锁
+			time.Sleep(500 * time.Millisecond)
+			fmt.Println("get read lock")
+			rwLock.RUnlock()
+		}
+	}()
+
+	wg.Wait()
+}
+```
+
+# goroutine 之间的通信
+
+```go
+package main
+
+import "fmt"
+
+func main() {
+	/*
+		go的设计哲学:
+		不要通过共享内存来通信,而要通过通信来实现内存共享
+	*/
+	var msg chan string
+
+	// 有缓冲(大于 0)和无缓冲的 channel
+	// msg = make(chan string, 0) // channel 初始化如果为0,放值进去会 deadlock
+	msg = make(chan string, 1)
+
+	// 无缓冲适用于: 通信
+	// 有缓冲适用于: 消费者和生产者之间通信
+	/*
+		go 中 channel 的应用场景:
+			1. 消息传递、消息过滤
+			2.信号广播
+			3.事件订阅和广播
+			4.任务分发
+			5.结果汇总
+			6.并发控制
+			7.同步和异步
+			...
+	*/
+
+	msg <- "Aimyon" // 将值传入channel
+	data := <-msg   // 取值
+	fmt.Println(data)
+}
+```

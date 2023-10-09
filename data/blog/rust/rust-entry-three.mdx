@@ -1,0 +1,166 @@
+---
+title: Rust入门笔记(三)
+date: '2023-6-2'
+tags: ['Rust', 'Rust入坑系列']
+draft: false
+summary: 'Rust (Struct)结构体'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={2} />
+
+# Ownership of Struct Data
+
+简单引入生命周期概念
+
+下列示例代码使用声明周期 `'a` 为 `&str` 这一引用类型,为 `Rust编译器` 提供了注解一样,避免了 User 结构体被 drop 时
+还对 `username` `email`形成悬垂引用的可能
+
+```rust
+// struct User {
+//     username: &str, // !!! ERROR  编译器报错: expected named lifetime parameter
+//     email: &str,    // !!! ERROR
+//     sign_in_count: u64,
+//     active: bool,
+// }
+
+struct User<'a> {
+    username: &'a str,
+    email: &'a str,
+    sign_in_count: u64,
+    active: bool,
+}
+
+fn main() {
+    let _user = User {
+        email: "yilonglei790@gmail.com",
+        username: "etcetera",
+        active: true,
+        sign_in_count: 1,
+    };
+}
+```
+
+# Struct Update
+
+```rust
+#[derive(Debug)]
+struct Order {
+    name: String,
+    year: u32,
+    made_by_phone: bool,
+    made_by_mobile: bool,
+    made_by_email: bool,
+    item_number: u32,
+    count: u32,
+}
+
+fn create_order_template() -> Order {
+    Order {
+        name: String::from("Bob"),
+        year: 2019,
+        made_by_phone: false,
+        made_by_mobile: false,
+        made_by_email: true,
+        item_number: 123,
+        count: 0,
+    }
+}
+
+fn your_order() -> Order {
+    let order_template = create_order_template();
+    let your_order = Order {
+        // 和 JavaScript 中结构覆盖一个道理,覆盖相同 key 的 value,
+        // 下面练习代码新的 your_order 的 name、count 变为 “Hacker in Rust”, 1
+        name: String::from("Hacker in Rust"),
+        count: 1,
+        ..order_template
+    };
+    return your_order;
+}
+
+fn main() {
+    let x = your_order();
+    println!("{:?}", x);
+}
+```
+
+# Struct with Methods
+
+```rust
+// 自动注入 Debug trait 方便格式化打印
+#[derive(Debug)]
+struct Package {
+    sender_country: String,
+    recipient_country: String,
+    weight_in_grams: i32,
+}
+
+impl Package {
+    // 第一个参数不为 self ｜ &self ｜ &mut self 情况下,该函数为关联函数,通过 Struct::func()调用,非关联函数使用Struct.func()调用
+    fn new(sender_country: String, recipient_country: String, weight_in_grams: i32) -> Package {
+        if weight_in_grams <= 0 {
+            // This shouldn't happen so we panic
+            panic!();
+        }
+        Package {
+            // 强化语法,键值名称相同情况下可以用下面语法,和 JavaScript 中对象增强语法一个意思
+            sender_country,
+            recipient_country,
+            weight_in_grams,
+        }
+    }
+
+    fn is_international(&self) -> bool {
+        self.sender_country != self.recipient_country
+    }
+
+    fn get_fees(&self, cents_per_gram: i32) -> i32 {
+        self.weight_in_grams * cents_per_gram
+    }
+}
+
+fn main() {
+    let sender_country = String::from("Spain");
+    let recipient_country = String::from("Germany");
+
+    let package = Package::new(sender_country, recipient_country, 1200);
+
+    if package.is_international() {
+        println!(
+            "{}",
+            "The package from Spain to Germany is indeed international!"
+        )
+    } else {
+        println!("{}", "Oops")
+    }
+
+    let sender_country = String::from("Spain");
+    let recipient_country = sender_country.clone();
+
+    let cents_per_gram = 3;
+
+    let package = Package::new(sender_country, recipient_country, 1500);
+
+    if !package.is_international() {
+        println!(
+            "{}",
+            "The package from Spain to Spain is not international indeed!"
+        )
+    } else {
+        println!("{}", "Oops")
+    }
+
+    let price = package.get_fees(cents_per_gram);
+    println!("{}", "Your price is:");
+    println!("{}", price);
+
+    if package.get_fees(cents_per_gram) == 4500 {
+        println!("{}", "The fees are correct!");
+    } else {
+        println!("{}", "The fees are wrong!")
+    }
+}
+```

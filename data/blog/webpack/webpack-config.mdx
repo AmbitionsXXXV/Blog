@@ -1,0 +1,244 @@
+---
+title: 前端工程化--常用配置
+date: '2022-11-25'
+tags: ['前端工程化', 'blog', 'babel']
+lastmod: '2023-2-27'
+draft: false
+summary: '工程化下常用配置'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={2} />
+
+## webpack 使用 babel
+
+而同时 webpack 使用 babel 解析的配置如下(使用 react 情况)
+
+其中 babel 下的 options 一般可以抽取到 babel.config.js 中
+
+```js:webpack.config.js
+const path = require('path')
+const HtmlWebpackPlugin = require('html-webpack-plugin')
+
+module.exports = {
+  mode: 'development',
+  devtool: false,
+  entry: './src/index.js',
+  output: {
+    path: path.resolve(__dirname, './build'),
+    filename: 'bundle.js',
+    // 重新打包时, 先将之前打包的文件夹删除掉
+    clean: true
+  },
+  resolve: {
+    extensions: ['.js', '.json', '.wasm', '.jsx', '.ts']
+  },
+  module: {
+    rules: [
+      // 针对jsx?代码进行babel处理
+      {
+        test: /\.jsx?$/, // x?: 0或者1个x
+        // exclude: /node_modules/,
+        use: {
+          loader: "babel-loader",
+        //   options: {
+        //     // plugins: [
+        //     //   "@babel/plugin-transform-arrow-functions",
+        //     //   "@babel/plugin-transform-block-scoping"
+        //     // ]
+        //     presets: [
+        //       ["@babel/preset-env", {
+        //         // 在开发中针对babel的浏览器兼容查询使用browserslist工具, 而不是设置target
+        //         // 因为browserslist工具, 可以在多个前端工具之间进行共享浏览器兼容性(postcss/babel)
+        //         // targets: ">5%"
+        //       }]
+        //     ]
+        //   }
+        }
+      },
+      {
+        test: /\.ts$/,
+        // use: "ts-loader"
+        use: 'babel-loader'
+      }
+    ]
+  },
+  plugins: [
+    new HtmlWebpackPlugin({
+      template: './index.html'
+    })
+  ]
+}
+```
+
+## 首先借用 babel 官网的一句话`Babel is a JavaScript compiler`
+
+展示下一般情况下 babel 的配置,当然我们一般在 babel.config.js 文件下配置 babel
+
+```js:babel.config.js
+module.exports = {
+  // babel 本身不具有任何转化功能,我们要的代码要转换某些功能,比如将es6转换为es5,我们就需要下载相应的插件,并且将这些插件配置到。babelrc文件的plguins里面
+  // plugins: [
+  //    解析箭头函数转换为普通函数
+  //   "@babel/plugin-transform-arrow-functions",
+  //   "@babel/plugin-transform-block-scoping"
+  // ]
+  presets: [
+    ["@babel/preset-env", {
+      // 在开发中针对babel的浏览器兼容查询使用browserslist工具, 而不是设置target
+      // 因为browserslist工具, 可以在多个前端工具之间进行共享浏览器兼容性(postcss/babel)
+      // targets: ">5%"
+      // corejs: 3,
+      // // false: 不使用polyfill进行填充
+      // useBuiltIns: "entry"
+    }],
+    ["@babel/preset-react"],
+    ["@babel/preset-typescript", {
+      corejs: 3,
+      useBuiltIns: "usage"
+    }]
+  ]
+}
+```
+
+## polyfill
+
+babel 默认只转换新的 JavaScript 语法,比如箭头函数、扩展运算(spread)
+不转换新的 API,例如 Iterator、Generator、Set、Maps、Proxy、Reflect、Symbol、Promise 等全局对象,以及一些定义在全局对象上的方法(比如 Object.assign)都不会转译。如果想使用这些新的对象和方法,则需要为当前环境提供一个垫片(polyfill)
+Polyfill 主要有三种
+@babel/polyfill
+
+## webpack 配置跨域
+
+### webpack 使用 proxy 底层原理
+
+原理其实就是开发阶段(development)本地开启一个 node 服务,这里用 express 模拟下,然后具体原理就是使用 http-proxy-middleware 这个中间件
+
+```js
+const express = require('express')
+const { createProxyMiddleware } = require('http-proxy-middleware')
+
+const app = express()
+
+app.use(express.static('./client'))
+
+app.use(
+  '/api',
+  createProxyMiddleware({
+    target: 'http://localhost:8000',
+    pathRewrite: {
+      '^/api': '',
+    },
+  })
+)
+
+app.listen(9000, () => {
+  console.log('express proxy服务器开启成功')
+})
+```
+
+然后完整展示下在 webpack 的 devSever 配置跨域解决方案
+
+```js:webpack.config.js
+const path = require('path')
+const HtmlWebpackPlugin = require('html-webpack-plugin')
+
+module.exports = {
+  mode: 'development',
+  devtool: false,
+  entry: './src/index.js',
+  output: {
+    path: path.resolve(__dirname, './build'),
+    filename: 'bundle.js',
+    // 重新打包时, 先将之前打包的文件夹删除掉
+    clean: true
+  },
+  resolve: {
+    extensions: ['.js', '.json', '.wasm', '.jsx', '.ts']
+  },
+  devServer: {
+    static: ['public', 'content'],
+    // host: '0.0.0.0',
+    // 本地项目对应端口
+    port: 3000,
+    open: true,
+    compress: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:9000',
+        pathRewrite: {
+          '^/api': ''
+        },
+        // 当服务器有端口校验时,将本地请求到代理服务器的host更改为target对应端口,所以尽量都开启
+        changeOrigin: true
+      }
+    },
+    // 设置后如果刷新返回404,会自动重定向到localhost:3000,重新请求这里的资源
+
+    historyApiFallback: true
+  },
+  plugins: [
+    new HtmlWebpackPlugin({
+      template: './index.html'
+    })
+  ]
+}
+```
+
+## webpack 性能优化
+
+- 主要两个方面
+
+  - 打包后的结果
+
+    - 分包处理 react(lazy)/vue 路由懒加载
+    - 代码进行压缩(丑化代码)
+
+          - 使用 Terser 插件:bundle.js 默认是没有任何压缩的,我们平时工程里看到打包后丑化压缩的代码都是 webpack 底层使用 TerserPlugin 的原因
+          - Terser 是一个 JavaScript 解释的工具集
+          - 配置方式,`webpack.config.js`的`optimization`选项:
+
+          ```js:webpack.config.js
+          module.exports = {
+            optimization: {
+              minimize: true,
+              // 代码优化: TerserPlugin => 让代码更加简单 => Terser
+              minimizer: [
+                // JS 压缩的插件: TerserPlugin
+                new TerserPlugin({
+                  extractComments: false,
+                  terserOptions: {
+                    compress: {
+                      arguments: true,
+                      unused: true
+                    },
+                    mangle: true,
+                    // toplevel: false
+                    keep_fnames: true
+                  }
+                })
+              ]
+            }
+          }
+          ```
+
+    - 删除无用的代码(tree shaking)
+    - CDN 服务器
+
+  - 优化打包速度
+    - 代码分离,将一个 bundle.js 分成多个 bundle,实现按需加载,或者并行加载这些文件
+
+- webpack 常用代码分离方式:
+  - 入口起点:使用 entry 配置手动分离代码
+  - 防止重复:使用 Entry Dependencies 或者 SplitChunksPlugin 去重和分离代码
+  - 动态导入:通过模块的内联函数调用来分离代码
+
+## Plugin
+
+- `Plugin` 是如何被注册到 webpack 的生命周期中的:
+  - 第一:在 webpack 函数的 `createCompiler` 方法中,注册了所有的插件
+  - 第二:在注册插件时,会调用插件函数或者插件对象的 `apply` 方法
+  - 第三:插件方法会接收 `compiler` 对象,我们可以通过 `compiler` 对象来注册 Hook 的事件
+  - 第四:某些插件也会传入一个 `compilation` 的对象,我们也可以监听 `compilation` 的 Hook 事件

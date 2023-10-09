@@ -1,0 +1,173 @@
+---
+title: Golang的一些东西(八)
+date: '2023-5-31'
+tags: ['Golang']
+draft: false
+summary: '浅学一下Golang,第八篇,etc...'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={2} />
+
+# `Go`的`package`
+
+`package`用来组织源码,是多个`go`源码复用的基础, `fmt`、`os`、`io`等每个源码文件开始都必须要申明所属的`package`,`python`不需要去什么`package`
+
+```go:main.go
+package main
+
+import (
+	"fmt"
+  // 需要先建立go mod 文件
+	// u "user/band" // u 为路径别名
+  "user/band"
+)
+
+func main() {
+	b := band.Band{
+		Name: "ONE OK ROCK",
+	}
+	fmt.Println(band.SingSong(b))
+}
+```
+
+```go:band/sing.go
+package band
+
+func SingSong(b Band) string {
+	return b.Name
+}
+```
+
+```go:band/band.go
+package band
+
+type Band struct {
+	Name string
+}
+```
+
+# Go 的包管理 `Go Module`
+
+`Go Module` 是 Go 语言从版本 1.11 开始引入的官方依赖管理工具,它的目标是改进 Go 语言包管理的现状,提供可复用性、版本控制、依赖下载和缓存等功能。使用 Go Module 可以让我们更轻松地管理 Go 项目的依赖关系,并且确保每个模块可以在不同的环境中被正确地构建和运行。
+
+`Go Module` 主要有以下几个特点:
+
+- `自动化依赖管理:` `Go Module` 提供了自动解析、下载和更新依赖的机制,可以根据 `go.mod` 文件中的依赖关系,自动生成依赖树,并维护依赖版本。
+
+- `多版本支持:` `Go Module` 支持多版本依赖,在依赖管理时可以指定所需的依赖版本,以达到更好的兼容性和稳定性。
+
+- `私有仓库支持:` `Go Module` 支持从私有仓库中下载依赖,可以通过设置环境变量或者配置文件等方式进行配置。
+
+- `多语言支持:` `Go Module` 可以与其他语言的包管理工具集成,例如 `npm`、`pip` 等,以便于跨语言开发和依赖管理。
+
+- `Go Module` 的使用主要包括以下几个步骤:
+
+  - `初始化一个新的 Go 模块`,可以使用 `go mod init` 命令,例如 `go mod init example.com/mymodule`,会创建一个新的 Go 模块,并在项目根目录下生成一个 `go.mod` 文件。
+
+  - `添加新的依赖`,可以直接在代码中使用所需的包或模块,`Go Module` 会自动检查所需的依赖并进行下载和更新。也可以使用 `go get` 命令手动添加依赖,例如 `go get example.com/mymodule/v2`,会从指定的包路径中获取 v2 版本的依赖。
+
+  - `管理依赖版本`,可以使用 `go mod tidy` 命令来检查模块的依赖关系,并自动清理无用依赖。可以使用 `go list -m all` 来列出所有的依赖项及其版本信息。如果需要修改依赖版本,可以手动编辑 `go.mod` 文件中的版本号,并运行 `go mod tidy` 命令重新加载依赖关系。
+
+  - `发布模块`,可以使用 `go mod vendor` 命令将所有依赖项复制到项目的 `vendor` 目录中,以实现离线管理依赖。也可以使用 `go mod download` 命令,将所有或指定的依赖项预先下载到本地缓存中。
+
+  - 需要注意的是,在使用 `Go Module` 时,需要让项目目录支持 `Go Module`,可以通过设置环境变量 `GO111MODULE=on` 来打开 `Go Module` 功能。同时,`Go Module` 还需要安装 `Git` 或者 `SVN` 等版本控制工具来管理依赖的版本信息。
+
+# Go 的并发编程
+
+`python` `java` `php` 多线程编程、多进程编程,多线程和多进程存在的问题主要是耗费内存
+
+内存、线程切换,web2.0,用户级线程,进程、轻量级线程、协程,`asyncio-python` `php-swoole` `java-netty`
+
+内存占用小、切换快,`Go` 只有协程可以使用, 为 `goroutine`,
+
+```go
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+// func asyncPrint() {
+// 	fmt.Println("aimyon")
+// }
+//
+// // 主协程
+// func main() {
+// 	// 子协程(子协程会随主协程销毁而销毁)
+// 	// 这里因为下面是个异步过程,所以 asyncPrint 来不及在主协程销毁前打印,就跟随主协程被销毁了
+// 	go asyncPrint()
+// }
+
+// 验证异步
+// func asyncPrint() {
+// 	time.Sleep(time.Second)
+// 	fmt.Println("aimyon")
+// }
+
+func main() {
+	// go asyncPrint()
+
+	// 匿名函数启动 goroutine
+	// go func() {
+	// 	for {
+	// 		time.Sleep(time.Second)
+	// 		fmt.Println("aimyon")
+	// 	}
+	// }()
+
+	// 1. 闭包
+	// 2. for 循环的问题: 每次 for 循环的时候 i 变量会重用
+	for i := 0; i < 100; i++ {
+		// 解决方法(但是也不能保证执行顺序,因为 goroutine 是异步执行):
+		// 1. 中间变量
+		// i := i
+		// go func() {
+		// 	fmt.Println(i) // 由 'go' 语句中的 'func' 文字捕获的循环变量可能有意外值,类似于 JS for循环的暂时性死区
+		// }()
+
+		// 2. 值传递
+		go func(i int) {
+			fmt.Println(i) // 由 'go' 语句中的 'func' 文字捕获的循环变量可能有意外值
+		}(i)
+	}
+
+	fmt.Println("OOR") // 会在 asyncPrint 之前打印
+	time.Sleep(4 * time.Second)
+}
+```
+
+## 通过 `sync`
+
+```go
+package main
+
+import (
+	"fmt"
+	"sync"
+)
+
+// 子goroutine 如何通知到 主goroutine 自己结束了，同理 主goroutine 怎么知道子goroutine 结束了
+func main() {
+	var wg sync.WaitGroup
+
+	//  我要监控多少个 goroutine
+	wg.Add(100)
+	for i := 0; i < 100; i++ {
+		go func(i int) {
+			defer wg.Done() // 因为 defer 是在整个函数执行完成后再执行,防止忘记使用 Done 造成死锁
+			fmt.Println(i)
+			//wg.Done() // 和 Add 一定要配对出现,否则直接执行会出现死锁
+		}(i)
+	}
+
+	// 等待
+	wg.Wait()
+	fmt.Println("all done----")
+
+	// Wait 方法主要用于 goroutines 的执行等待
+}
+```

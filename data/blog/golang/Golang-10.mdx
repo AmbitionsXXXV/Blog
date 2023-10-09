@@ -1,0 +1,161 @@
+---
+title: Golang的一些东西(十)
+date: '2023-6-16'
+tags: ['Golang']
+draft: false
+summary: '浅学一下Golang,第十篇,etc...'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={3} />
+
+# 遍历 channel
+
+```go
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func main() {
+	var msg chan int
+
+	msg = make(chan int, 1)
+	go func(msg chan int) {
+		//data := <-msg
+		//fmt.Println(data) // 只能打印一个,因为只取了一次值
+		for data := range msg {
+			fmt.Println(data)
+		} // 这样就都会打印出来
+		fmt.Println("all done...")
+	}(msg)
+
+	msg <- 3636  // 会打印出来
+	msg <- 10969 // 会被阻塞,不会打印出来
+
+	close(msg)
+	// 关闭的 channel 不能再放值,但是可以再取值
+	time.Sleep(time.Second * 5)
+}
+```
+
+# 单向 channel
+
+```go
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func producer(out chan<- int) {
+	for i := 0; i < 10; i++ {
+		out <- i * i
+	}
+	close(out)
+}
+
+func consumer(in <-chan int) {
+	for num := range in {
+		fmt.Printf("num=%d\r\n", num)
+	}
+}
+
+func main() {
+	// channel 默认是双向的(即可以读可以写),但特殊情景下如想将 channel 作为参数传递时希望单向传递
+
+	//var ch1 chan int       // 双向 channel
+	//var ch2 chan<- float64 // 单向 channel,只能写入 float64 的数据
+	//var ch3 <-chan int     // 单向,只能读取
+
+	//c := make(chan int, 3)
+	//var send chan<- int = c // send-only
+	//var read <-chan int = c // read-only
+	//
+	//send <- 36
+	//<-read
+
+	c := make(chan int)
+	go producer(c)
+
+	go consumer(c)
+	time.Sleep(time.Second * 3)
+}
+```
+
+# channel 的交叉通信
+
+```go
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+var number, letter = make(chan bool), make(chan bool)
+
+func printNum() {
+	i := 1
+	for {
+		// 在此处等待另一个 goroutine 来通知
+		<-number
+		fmt.Printf("%d%d", i, i+1)
+		i += 2
+		letter <- true
+	}
+}
+
+func printLetter() {
+	i := 0
+	str := "asodhjaodhao"
+	for {
+		<-letter
+		if i >= len(str) {
+			return
+		}
+		fmt.Printf(str[i : i+2])
+		i += 2
+		number <- true
+	}
+}
+
+func main() {
+	// 使用 channel 实现交叉打印, 一个 goroutine 打印数字, 一个 goroutine 打印字母
+	go printNum()
+	go printLetter()
+	number <- true
+
+	time.Sleep(time.Second * 2)
+}
+```
+
+# Go 的 select
+
+`Go` 中的 `select` 语句是一种选择性执行多路通信的方式,类似于 `C 语言`中的 `select`、`Java` 中的 `Selector` 和 `Python` 中的 `selectors` 模块.它可以同时监视多个 `channel` 上的数据流动,并在其中任意一个 `channel` 准备好可读或可写时,立即执行相应的代码.
+
+`select` 语句的基本结构如下:
+
+```go
+select {
+case <-ch1:
+    // ch1 有数据可读
+case ch2 <- data:
+    // ch2 可以写入数据
+default:
+    // 没有 channel 可读写
+}
+```
+
+`select` 语句会阻塞当前 `goroutine` 的执行,直到其中一个 `case` 分支可以被执行.如果多个 case 分支可以被执行,则会随机选择其中一个并执行相应的代码.
+
+在 `Linux` 中,`select`、`poll` 和 `epoll` 都是基于 `I/O` 多路复用机制的实现方式,可以同时监测多个文件描述符的状态并进行相应的操作.这些函数可以用于实现高效的网络通信和文件 I/O 操作,比如 HTTP 服务器、聊天应用等.
+
+`select` 和 `poll` 的使用方式比较类似,都需要将需要监测的文件描述符放入一个数组中,并调用相应的函数对其进行监测.`epoll` 则采用更加高效的事件驱动方式,可以通过调用操作系统提供的 `epoll_create`、`epoll_ctl` 和 `epoll_wait` 系统调用来实现高效的多路复用操作.
+
+总之,`select`、`poll` 和 `epoll` 都是用于实现多路复用的常用机制,能够提高程序的性能和并发度.

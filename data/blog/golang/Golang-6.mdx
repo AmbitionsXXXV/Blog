@@ -1,0 +1,172 @@
+---
+title: Golang的一些东西(六)
+date: '2023-5-25'
+tags: ['Golang']
+draft: false
+summary: '浅学一下Golang,第六篇,etc...'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={2} />
+
+# `type`关键字
+
+```go
+package main
+
+import (
+	"fmt"
+	"strconv"
+)
+
+// 扩展自定义类型
+type myInt int
+
+func (mi myInt) string() string {
+	return strconv.Itoa(int(mi))
+}
+
+func main() {
+	// type 关键字作用
+	/*
+		1.定义结构体
+		2.定义接口
+		3.定义类型别名
+	*/
+	// 别名实际上是为了更好的理解代码
+	// type MyInt = int // 类型别名
+	// var a MyInt = 36
+	// var b int = 10969
+	// fmt.Println(a + b)      // 编译阶段,类型别名还是会替换回 int 类型
+	// fmt.Printf("%T\r\n", a) // int
+
+	// 自定义类型: 基于已有的类型自定义一个类型
+	// type MyInt2 int
+	// var m MyInt2 = 3636
+	// var n int = 10969
+	// fmt.Printf("%T\r\n", m) // main.MyInt2
+	// // fmt.Println(m + n)      // 此时直接 m + n 会报错类型问题
+	// fmt.Println(int(m) + n) // 需要对m进行强制类型转换
+
+	// 或站自定义类型的展示
+	var m myInt = 36
+	fmt.Printf("%T\r\n", m.string()) // string
+}
+```
+
+# `struct`结构体
+
+```go
+package main
+
+import "fmt"
+
+// Band 类似于其他语言的对象
+type Band struct {
+	member int
+	vocal  string
+	guitar string
+}
+
+func main() {
+	// 两种初始化方式
+	// 直接填充值,必须对应位置,且所有值都需要填充
+	aimyon := Band{1, "aimyon", ""}
+	// 可以针对填充字段
+	oor := Band{
+		member: 4,
+		vocal:  "taka",
+		guitar: "toru",
+	}
+	fmt.Println(oor.vocal)
+	fmt.Println(aimyon.guitar)
+
+	var bands []Band
+	bands = append(bands, oor)
+	fmt.Println(bands)
+
+	// 匿名结构体
+	singer := struct {
+		name string
+		age  int
+	}{
+		name: "aimyon",
+		age:  28,
+	}
+	fmt.Println(singer.name)
+}
+```
+
+# 结构体嵌套&给结构体定义方法
+
+```go
+package main
+
+import "fmt"
+
+type Singer struct {
+	name string
+	age  int
+}
+
+type Band struct {
+	// 第一种嵌套方式
+	vocal  Singer
+	guitar Singer
+
+	year int
+}
+
+// 给结构体定义方法
+func (b Band) print() {
+	fmt.Printf("name: %s, age: %d\r\n", b.vocal.name, b.vocal.age)
+}
+
+// 当需要改变传入值时,使用指针入参
+func (b2 *Band2) setName() {
+	b2.name = "new name"
+}
+
+type Band2 struct {
+	// 第二种嵌套方式(匿名嵌套)
+	Singer
+
+	year int
+}
+
+func main() {
+	s := Band{
+		Singer{
+			"taka",
+			34,
+		},
+		Singer{
+			"toru",
+			34,
+		},
+		17,
+	}
+
+	band := Band{}
+	band.year = 17
+
+	s.print()
+	fmt.Println(s.vocal.name)
+	fmt.Println(band.year)
+
+	// 第二种方式的初始化还是需要这样声明
+	b := Band2{
+		Singer{
+			"aimyon",
+			29,
+		},
+		10,
+	}
+	// 可以这样这样取值
+	fmt.Println(b.name) // aimyon
+	b.setName()
+	fmt.Println(b.name) // new name
+}
+```

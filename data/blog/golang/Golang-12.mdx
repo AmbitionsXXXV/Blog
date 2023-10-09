@@ -1,0 +1,66 @@
+---
+title: Golang的一些东西(十二)
+date: '2023-6-18'
+tags: ['Golang']
+draft: false
+summary: '浅学一下Golang,第十二篇,etc...'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={2} />
+
+# 使用内置 rpc 包建立服务
+
+```go
+// server.go
+package main
+
+import (
+	"net"
+	"net/rpc"
+)
+
+type HelloService struct{}
+
+func (s *HelloService) Hello(request string, response *string) error {
+	// 返回值是通过修改 response 的值
+	*response = "Hello" + request
+	return nil
+}
+
+func main() {
+	// 1. 实例化一个 server
+	listener, _ := net.Listen("tcp", ":1234")
+	// 2. 注册处理逻辑 handler
+	_ = rpc.RegisterName("HelloService", &HelloService{})
+	// 3. 启动服务
+	conn, _ := listener.Accept() // 当一个新的链接进来时,rpc 会接管逻辑
+	rpc.ServeConn(conn)
+}
+```
+
+```go
+// client.go
+package main
+
+import (
+	"fmt"
+	"net/rpc"
+)
+
+func main() {
+	// 1. 建立连接
+	client, err := rpc.Dial("tcp", "localhost:1234")
+	if err != nil {
+		panic("连接失败")
+	}
+	var response string
+	err = client.Call("HelloService.Hello", "Aimyon", &response)
+	if err != nil {
+		panic("调用失败")
+	}
+	fmt.Println(response)
+}
+```
