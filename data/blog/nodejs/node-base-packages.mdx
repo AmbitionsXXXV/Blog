@@ -1,0 +1,345 @@
+---
+title: Node 中的一些基本模块
+date: '2023-10-8'
+tags: ['node.js']
+draft: false
+summary: 'Node 中的一些基本模块'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={3} />
+
+## OS 模块
+
+```js
+import * as os from 'os'
+
+// arch 返回一个字符串，表明 Node.js 二进制编译所用的 操作系统CPU架构
+console.log(os.arch())
+// cpus 返回一个对象数组，包含每个逻辑 CPU 内核的信息
+console.log(os.cpus())
+// homedir 返回当前用户的主目录的字符串路径
+console.log(os.homedir())
+// tmpdir 返回操作系统的默认临时文件夹
+console.log(os.tmpdir())
+```
+
+## Path 模块
+
+```js
+import * as path from 'path'
+
+// dirname 返回 path 的目录名 (文件夹)
+path.dirname('/foo/bar/baz/asdf/quux')
+console.log(path.dirname('/foo/bar/baz/asdf/quux'))
+
+// basename 返回 path 的最后一部分 (文件名)
+path.basename('/foo/bar/baz/asdf/quux.html')
+
+const basePath = 'a/b'
+// join 方法使用平台特定的分隔符把全部给定的 path 片段连接到一起，并规范化生成的路径
+console.log(path.join(basePath, 'c', 'd'))
+
+// resolve 方法把一个路径或路径片段的序列解析为一个绝对路径
+console.log(path.resolve(__dirname, 'a', 'b', 'c', 'd'))
+
+// __dirname 返回当前模块的目录名(类似于 __filename 的 path.dirname() 的值),或者理解为 pwd 命令的结果
+console.log(__dirname)
+// __filename 返回当前模块的文件名。这是当前模块的绝对路径(符号链接会被解析)
+console.log(__filename)
+```
+
+## url 模块
+
+```js
+import * as URL from 'url'
+
+// URL 类用于解析和格式化 URL
+const url = new URL.URL('https://example.org/?a=1')
+console.log(url)
+// Output:
+// URL {
+//   href: 'https://example.org/?a=1',
+//   origin: 'https://example.org',
+//   protocol: 'https:',
+//   username: '',
+//   password: '',
+//   host: 'example.org',
+//   hostname: 'example.org',
+//   port: '',
+//   pathname: '/',
+//   search: '?a=1',
+//   searchParams: URLSearchParams { 'a' => '1' },
+//   hash: ''
+// }
+
+// URLSearchParams 类定义了一些实用的方法来处理 URL 的查询字符串,get 方法返回键值对列表中与给定搜索参数关联的第一个值
+console.log(url.searchParams.get('a'))
+// set 方法设置键值对列表中与给定搜索参数关联的第一个值
+url.searchParams.set('b', '2')
+console.log(url.searchParams.get('b'))
+
+// URL 类的静态方法 resolve(from, to) 方法会解析 from 和 to 参数为绝对路径，类似于执行 cd 命令
+URL.resolve('/one/two/three', 'four') // '/one/two/four'
+
+const urlObject = {
+  protocol: 'https:',
+  slashes: true,
+  hostname: 'www.example.com',
+  pathname: '/search',
+  search: '?q=node.js',
+}
+URL.format(urlObject) // https://www.example.com/search?q=node.js
+```
+
+## fs 模块
+
+```ts
+import * as path from 'path'
+import * as fs from 'fs'
+
+// 如果该目录下没有该文件，会自动创建，但是如果该目录不存在，会报错
+const filename = path.resolve(__dirname, './test.ts')
+// fs.readFile() 是异步函数用于读取文件,不指定编码格式时返回原始的 buffer
+// fs.readFile(filename, 'utf-8', (err, data) => {
+//   console.log(data)
+// })
+
+// sync 函数是同步的，会阻塞后面的代码，等待文件读取完成后才执行, 一般不使用
+// 通常在程序启动时，运行有限的次数，不会对性能造成影响
+// const content = fs.readFileSync(filename, 'utf-8')
+// console.log(content)
+
+// 推荐使用 promise 的方式
+// node 现在在 promises 中单独提供了 promise 的 API，不需要引入第三方库
+const test = async () => {
+  // 这样直接调用会覆盖原来的内容
+  // await fs.promises.writeFile(filename, 'aimyon')
+  // 为了不覆盖原来的内容，需要加上 flag
+  await fs.promises.writeFile(filename, 'aimyon', {
+    flag: 'a', // 表示 append 追加写入
+  })
+
+  // 同样可以写入 buffer
+  const buffer = Buffer.from('taka', 'utf-8')
+  await fs.promises.writeFile(filename, buffer)
+  console.log('文件写入成功')
+
+  const content = await fs.promises.readFile(filename, 'utf-8')
+  console.log(content)
+}
+
+// 手动复制文件
+const copy = async () => {
+  const fromFilename = path.resolve(__dirname, './oor.txt')
+  const buffer = await fs.promises.readFile(fromFilename)
+  const toFilename = path.resolve(__dirname, './oor.copy.txt')
+  await fs.promises.writeFile(toFilename, buffer)
+  console.log('文件复制成功')
+}
+
+const getStat = async () => {
+  const stat = await fs.promises.stat(filename)
+  console.log(stat)
+  // 其中还有 isDirectory()判断是否是目录/文件夹、isFile()是否是文件 方法
+  // Stats {
+  //   dev: 16777234,
+  //   mode: 33188,
+  //   nlink: 1,
+  //   uid: 501,
+  //   gid: 20,
+  //   rdev: 0,
+  //   blksize: 4096,
+  //   ino: 74434423,
+  //   size: 4,   // 占用字节
+  //   blocks: 8,
+  //   atimeMs: 1697959684291.214,
+  //   mtimeMs: 1697959682037.0825,
+  //   ctimeMs: 1697959682037.0825,
+  //   birthtimeMs: 1697958645752.003,
+  //   atime: 2023-10-22T07:28:04.291Z,  // 上次访问时间
+  //   mtime: 2023-10-22T07:28:02.037Z,  // 上次文件内容修改时间
+  //   ctime: 2023-10-22T07:28:02.037Z,  // 上次文件状态修改时间
+  //   birthtime: 2023-10-22T07:10:45.752Z  // 文件创建时间
+  // }
+}
+
+const dir = async () => {
+  const res = await fs.promises.readdir(__dirname)
+  // [ 'fs.ts', 'oor.copy.txt', 'oor.txt', 'test.ts' ]
+  // 创建文件夹
+  // await fs.promises.mkdir('test')
+  // 删除文件夹
+  await fs.promises.rmdir('test')
+}
+
+test()
+copy()
+dir()
+
+console.log(filename)
+```
+
+### 文件 I/O
+
+```ts
+import { promises } from 'node:fs'
+import path from 'node:path'
+
+class File {
+  public filename: string
+  public name: string
+  public ext: string
+  public isFile: boolean
+  public size: number
+  public createTime: Date
+  public updateTime: Date
+
+  constructor(
+    filename: string,
+    name: string,
+    ext: string,
+    isFile: boolean,
+    size: number,
+    createTime: Date,
+    updateTime: Date
+  ) {
+    this.filename = filename
+    this.name = name
+    this.ext = ext
+    this.isFile = isFile
+    this.size = size
+    this.createTime = createTime
+    this.updateTime = updateTime
+  }
+
+  async getContent(isBuffer = false) {
+    if (this.isFile) {
+      if (isBuffer) {
+        return await promises.readFile(this.filename)
+      } else {
+        return await promises.readFile(this.filename, 'utf-8')
+      }
+    } else {
+    }
+  }
+
+  async getChildren() {
+    if (this.isFile) return []
+
+    const children = await promises.readdir(this.filename)
+    const childrenRes = children.map((name) => {
+      const res = path.resolve(this.filename, name)
+
+      return File.getFile(res)
+    })
+
+    return Promise.all(childrenRes)
+  }
+
+  static async getFile(filename: string) {
+    const stat = await promises.stat(filename)
+    const name = path.basename(filename)
+    const ext = path.extname(filename)
+    const isFile = stat.isFile()
+    const size = stat.size
+    const createTime = new Date(stat.birthtime)
+    const updateTime = new Date(stat.mtime)
+
+    return new File(filename, name, ext, isFile, size, createTime, updateTime)
+  }
+}
+
+const readDir = async (dirname: string) => {
+  const file = await File.getFile(dirname)
+
+  return await file.getChildren()
+}
+
+const test = async () => {
+  const filename = path.resolve(__dirname, './custom')
+  const file = await readDir(filename)
+  // 也支持循环调用
+  // const child = await file[0].getChildren()
+  console.log(file)
+}
+
+test()
+```
+
+## 文件流
+
+`node` 中的 `stream` 模块提供了构建所有流 API 的基础。所有的流都是 `EventEmitter` 的实例。
+
+### 什么是流？
+
+- 流是指数据的流动，数据从一个地方缓缓的流动到另一个地方，就像水流一样。
+
+- 流是一种抽象的数据结构，用于表示有序的字节数据序列。流可以是可读的(可读流)、可写的(可写流)、或者可读可写的(双工流)。所有的流都是 `EventEmitter` 的实例。
+
+#### 流是有方向的
+
+- 可读流(Readable)：从文件中读取数据到内存中
+
+- 可写流(Writable)：从内存中写入数据到文件中
+
+- 双工流(Duplex)：可读可写
+
+### 为什么需要流？
+
+- 其他介质和内存的数据规模不一致
+
+- 其他介质和内存的数据处理能力不一致
+
+### 创建文件流
+
+`fs.createReadStream(path[, options])`: 创建一个文件可读流，用于读取文件。(返回：`Readable` 的子类 `ReadStream`)
+
+文件流的读取部分(有节省内存)
+
+```ts
+import fs from 'node:fs'
+import path from 'node:path'
+
+const filename = path.resolve(__dirname, './oor.txt')
+const rs = fs.createReadStream(filename, {
+  encoding: 'utf-8',
+  highWaterMark: 1, // 每次读取数量，如果 encoding 有值，该数量表示一个字符数；如果 encoding 为 null，则表示字节数
+  autoClose: true, // 读完后自动关闭
+})
+
+rs.on('open', () => {
+  console.log('file open')
+})
+
+rs.on('error', () => {
+  console.log('file error')
+})
+
+rs.on('close', () => {
+  console.log('file close')
+})
+
+// 只有注册了 data 事件才会开始读
+rs.on('data', (chunk) => {
+  console.log('file data', chunk)
+  rs.pause() // 会触发 pause 事件
+})
+
+rs.on('pause', () => {
+  console.log('file pause')
+  setTimeout(() => {
+    rs.resume() // 会触发 resume 事件
+  }, 1000)
+})
+
+rs.on('resume', () => {
+  console.log('file resume')
+})
+
+rs.on('end', () => {
+  console.log('file read end')
+})
+```
