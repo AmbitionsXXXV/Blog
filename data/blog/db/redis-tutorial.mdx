@@ -1,0 +1,321 @@
+---
+title: redis 的基本使用入门
+date: '2023-10-21'
+tags: ['redis', 'database']
+draft: false
+summary: '记录下初步学习 redis, 主要是一些常用的命令'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={4} />
+
+# 什么是 redis ？
+
+`Redis(Remote Dictionary Server)` 是一个开源的使用 `ANSI C` 语言编写、支持网络、可基于内存亦可持久化的日志型、`Key-Value` 高性能键值存储系统(数据库)，并提供多种语言的 API。
+
+## redis 的特点
+
+- `速度快`: `Redis` 将数据存储在`内存`中，因此读写速度非常快。它采用了高效的数据结构和`异步 I/O` 操作，使其能够处理`每秒数十万次`的读写请求。
+
+- `持久化支持`: `Redis` 提供了两种持久化方式，一种是`快照(Snapshot)`，将内存中的数据以快照的方式保存到磁盘上；另一种是`日志(Append-Only File/AOF)`，将每条写操作追加到日志文件中，以便在重启时重新执行这些操作。
+
+- `分布式支持`: `Redis` 支持数据的分片和复制，可以通过分片将数据分布在多个 `Redis 节点`上，以实现`横向扩展`和`负载均衡`。同时，`Redis` 还支持`主从复制`，其中一个节点作为主节点接受写操作，其他节点作为从节点进行数据的复制和读操作。
+
+- `支持丰富的数据结构`: `Redis` 支持`字符串(String)`、`列表(List)`、`哈希(Hash)`、`集合(Set)`、`有序集合(Sorted Set)`等数据结构，这些数据结构都是基于 `Key-Value` 的，而且都支持各种操作，这使得 `Redis` 不仅仅是一个简单的 `Key-Value` 存储系统，还可以利用这些数据结构解决很多问题。
+
+- `丰富的功能`: `Redis` 提供了许多有用的功能，如事务支持、发布订阅(Pub/Sub)、`LRU` 策略的数据淘汰、数据的 `LUA` 脚本操作、数据过期和删除策略等支持。
+
+# redis 的使用
+
+## Docker 里面安装 redis
+
+```bash
+docker pull redis
+docker run -d --name redis -p 6379:6379 redis
+```
+
+或者 `Docker Desktop` 里面直接搜索 `redis`，然后启动即可，同时同样配置端口映射到主机 6379 端口，并做指定数据卷。指定数据卷之后会看到 `redis` 里面的数据会持久化到主机上。
+
+## redis 的基本命令
+
+[redis文档](https://redis.io/docs/data-types/strings/)
+
+首先需要使用 `redis-cli` 进入 `redis` 的命令行模式，然后就可以使用 `redis` 的命令了。
+
+### String 相关操作
+
+```bash
+# 设置 key 的值为 value
+# set key value
+set aimyon 3636
+
+# 获取 key 的值
+# get key
+get aimyon
+
+# 获取多个 key 的值
+# mget key [key ...]
+mget aimyon aimyon2
+
+# 设置递增 key 的值
+# incr key
+incr aimyon
+
+# 查询 key 是否存在 1 存在 0 不存在
+# exists key
+exists aimyon
+
+# 查询所有的 key
+# keys pattern
+keys '*'
+
+# 删除 key
+# del key
+del aimyon
+
+# 设置 key 的值为 value，并设置过期时间为 10 秒
+# setex key seconds value
+setex aimyon 10 3636
+
+# 设置 key 的值为 value，如果 key 不存在则设置成功，返回 1，否则返回 0
+# setnx key value
+setnx aimyon 3636
+```
+
+### list 相关操作
+
+```bash
+# 在 key 对应的 list 的头部插入一个或多个值
+# lpush key value [value ...] 左插入
+lpush aimyon 1 2 3
+
+# 返回并删除 key 对应的 list 的第一个元素
+# lpop key
+lpop aimyon
+
+# 用于修剪(截取)列表(List), LTRIM 会修改原始的 list，而不是返回一个新的 list
+# ltrim key start stop
+ltrim aimyon 0 1
+
+# 返回 key 对应的 list 的长度
+# llen key
+llen aimyon
+
+
+# 在 key 对应的 list 的尾部插入一个或多个值
+# rpush key value [value ...] 右插入
+rpush aimyon 1 2 3
+
+# 返回并删除 key 对应的 list 的最后一个元素
+# rpop key
+rpop aimyon
+
+# 返回 key 对应的 list 中指定区间内的元素
+# lrange key start stop
+lrange aimyon 0 -1 # 查询全部 aimyon list 数据
+```
+
+### set 相关操作
+
+`set` 只能去重、判断包含，不能对元素排序。
+
+```bash
+# 向集合添加一个或多个成员
+# sadd key member [member ...]
+sadd aimyon 1 2 3
+# 当我添加重复数据时候
+sadd aimyon 1 2 3 4 5 6 7 8 9 10 # 会返回 7，因为 1 2 3 已经存在了
+
+# 判断是否是集合的成员
+# sismember key member
+sismember aimyon 1 # 1 存在返回 1，不存在返回 0
+
+# 如果排序、去重的需求，比如排行榜，可以用 sorted set，也就是 zset
+# zset 有序集合
+zadd zset1 5 taka
+zadd zset1 4 toru
+zadd zset1 3 ryota
+zadd zset1 6 tomoya
+# 结果会按照分数从小到大排序
+
+# 查询 zset1 的所有数据
+# zrange key start stop [WITHSCORES]
+zrange zset1 0 -1 WITHSCORES
+```
+
+### hash 相关操作
+
+```bash
+# 向 hash 表中添加一个或多个 key-value 对
+# hset key field value
+hset hash1 name aimyon
+
+# 获取 hash 表中指定 key 的值
+# hget key field
+hget hash1 name
+```
+
+### geo 相关操作
+
+```bash
+# 添加地理位置信息
+# geoadd key longitude latitude member [longitude latitude member ...]
+geoadd geo1 116.48105 39.996794 "aimyon" 15.087269 37.502669 "aimyon2" # redis 实际使用 zset 存储的，把经纬度转化为了二维平面的坐标
+
+# 获取两个地理位置之间的距离
+# geodist key member1 member2 [unit]
+geodist geo1 aimyon aimyon2 km # 返回两个地理位置之间的距离，单位可以是 m、km、mi、ft
+
+# 获取指定地理位置的 geohash 值
+# geohash key member [member ...]
+geohash geo1 aimyon aimyon2 # 返回指定地理位置的 geohash 值
+
+# 获取指定地理位置的经纬度
+# geopos key member [member ...]
+geopos geo1 aimyon aimyon2 # 返回指定地理位置的经纬度
+
+# 获取指定地理位置的周边地理位置
+# georadius key longitude latitude radius m|km|ft|mi [WITHCOORD] [WITHDIST] [WITHHASH] [COUNT count] [ASC|DESC] [STORE key] [STOREDIST key]
+georadius geo1 116.48105 39.996794 100 km WITHDIST # 返回指定地理位置的周边地理位置，单位可以是 m、km、mi、ft
+
+# 设置key的过期时间
+# expire key seconds
+expire aimyon 10 # 设置 aimyon 的过期时间为 10 秒
+```
+
+# node 中使用 redis
+
+`node` 中使用 `redis` 最主流的两个包就是 `node_redis` 和 `ioredis`，这两个包都是基于 `redis` 的 `node` 客户端，`ioredis` 是 `node_redis` 的升级版，性能更好，但是 `ioredis` 不支持 `redis` 的集群模式，所以在使用的时候需要注意。
+
+## node_redis
+
+```shell
+pnpm add redis
+```
+
+```js
+import { createClient } from 'redis'
+
+const client = createClient({
+  socket: {
+    host: 'localhost',
+    port: 6379,
+  },
+})
+
+client.on('error', (err) => console.log('Redis Client Error', err))
+
+await client.connect()
+
+// 执行 redis keys 命令 获取所有的 key
+const value = await client.keys('*')
+
+console.log(value)
+
+await client.disconnect()
+```
+
+ps: 因为这里使用的 `ESM` 语法, 所以需要在 `package.json` 中配置 `type: module`
+
+在执行其他命令, 创建一个 hash 表
+
+```js
+await client.hSet('guangguang1', '111', 'value111')
+await client.hSet('guangguang1', '222', 'value222')
+await client.hSet('guangguang1', '333', 'value333')
+```
+
+## ioredis
+
+```shell
+pnpm add ioredis
+```
+
+```js
+import Redis from 'ioredis'
+
+const redis = new Redis()
+
+const res = await redis.keys('*')
+
+console.log(res)
+```
+
+## nest 中使用 redis
+
+```shell
+pnpm add nestjs-redis
+```
+
+module 中引入 redis，这里使用 useFactory 动态创建 provider
+
+```ts
+import { Module } from '@nestjs/common'
+import { AppController } from './app.controller'
+import { AppService } from './app.service'
+import { createClient } from 'redis'
+
+@Module({
+  imports: [],
+  controllers: [AppController],
+  providers: [
+    AppService,
+    // 动态创建 provider
+    {
+      provide: 'REDIS_CLIENT',
+      async useFactory() {
+        const client = createClient({
+          socket: {
+            host: 'localhost',
+            port: 6379,
+          },
+        })
+        await client.connect()
+        return client
+      },
+    },
+  ],
+})
+export class AppModule {}
+```
+
+然后在 service 中使用
+
+```ts
+import { Inject, Injectable } from '@nestjs/common'
+import { RedisClientType } from 'redis'
+
+@Injectable()
+export class AppService {
+  @Inject('REDIS_CLIENT')
+  private redisClient: RedisClientType
+
+  async getHello() {
+    const value = await this.redisClient.keys('*')
+    console.log(value)
+
+    return 'Hello World!'
+  }
+}
+```
+
+因为 service 中将getHello 改为了 async 方法，所以 controller 中也需要改为 async 方法
+
+```ts
+import { Controller, Get } from '@nestjs/common'
+import { AppService } from './app.service'
+
+@Controller()
+export class AppController {
+  constructor(private readonly appService: AppService) {}
+
+  @Get()
+  async getHello() {
+    return await this.appService.getHello()
+  }
+}
+```
+
+最后请求 `http://localhost:3000` 就可以看到 redis 中的所有 key 了
