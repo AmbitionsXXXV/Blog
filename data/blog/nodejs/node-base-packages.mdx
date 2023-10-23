@@ -1,6 +1,6 @@
 ---
 title: Node 中的一些基本模块
-date: '2023-10-8'
+date: '2023-10-22'
 tags: ['node.js']
 draft: false
 summary: 'Node 中的一些基本模块'
@@ -293,7 +293,7 @@ test()
 
 - 其他介质和内存的数据处理能力不一致
 
-### 创建文件流
+### 可读流
 
 `fs.createReadStream(path[, options])`: 创建一个文件可读流，用于读取文件。(返回：`Readable` 的子类 `ReadStream`)
 
@@ -342,4 +342,125 @@ rs.on('resume', () => {
 rs.on('end', () => {
   console.log('file read end')
 })
+```
+
+### 可写流
+
+```ts
+import fs from 'node:fs'
+import path from 'node:path'
+
+const filename = path.resolve(__dirname, './oor.txt')
+
+const ws = fs.createWriteStream(filename, {
+  encoding: 'utf-8',
+  highWaterMark: 2, // 默认 16 kb
+})
+
+// writeStream 中也有事件
+// open close error,同样通过 on 来监听
+
+// 返回值是一个 boolean，
+// true 表示写入通道没有被填满，接下来的数据可以直接写入
+// false 表示通道已经被填满，不能直接写入
+// const flag = ws.write('a')
+// console.log(flag)
+
+// 背压问题，因为写入队列是内存中的数据，内存是很有限的
+// for (let i = 0; i < 1024 * 1024; i++) {
+//   ws.write(Buffer.from('a'))
+// }
+
+// let i = 0
+//
+// // 一直写，知道到上限为止
+// function write() {
+//   let flag = true
+//   while (i < 1024 * 1024 && flag) {
+//     // 写入 a 得到下一次还能不能直接写入
+//     flag = ws.write('a')
+//     i++
+//   }
+// }
+//
+// write()
+
+// 当写入队列清空时，会触发 drain 事件
+// ws.on('drain', () => {
+//   // 相较之前对内存压力更低
+//   write()
+//   console.log('可以继续写')
+// })
+```
+
+读取一个文件，并复制内容到另外一个文件
+
+```ts
+import path from 'node:path'
+import fs from 'node:fs'
+
+// 方式一
+async function copy() {
+  const from = path.resolve(__dirname, './oor.txt')
+  const to = path.resolve(__dirname, './oor2.copy.txt')
+
+  console.time('>>>1')
+  const content = await fs.promises.readFile(from)
+
+  await fs.promises.writeFile(to, content)
+  console.timeEnd('>>>1')
+  console.log('completed')
+}
+
+copy()
+
+// 方式二
+async function copy2() {
+  const from = path.resolve(__dirname, './oor.txt')
+  const to = path.resolve(__dirname, './oor3.copy.txt')
+
+  console.time('>>>2')
+  const rs = fs.createReadStream(from)
+  const ws = fs.createWriteStream(to)
+
+  rs.on('data', (chunk) => {
+    const flag = ws.write(chunk)
+
+    if (!flag) {
+      // 表示会造成背压
+      rs.pause()
+    }
+  })
+
+  ws.on('drain', () => {
+    // 监控暂停，然后继续读写
+    rs.resume()
+  })
+
+  rs.on('close', () => {
+    //   写完
+    ws.end()
+    console.timeEnd('>>>2')
+    console.log('completed')
+  })
+}
+
+copy2()
+
+// 方式三: 使用管道,同样可以解决背压问题
+async function copy3() {
+  const from = path.resolve(__dirname, './oor.txt')
+  const to = path.resolve(__dirname, './oor4.copy.txt')
+
+  console.time('>>>3')
+  const rs = fs.createReadStream(from)
+  const ws = fs.createWriteStream(to)
+
+  // 将可读流连接到可写流
+  rs.pipe(ws)
+  rs.on('close', () => {
+    console.timeEnd('>>>3')
+    console.log('completed')
+  })
+}
 ```
