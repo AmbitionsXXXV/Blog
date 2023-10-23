@@ -44,12 +44,40 @@ docker run -d --name redis -p 6379:6379 redis
 
 首先需要使用 `redis-cli` 进入 `redis` 的命令行模式，然后就可以使用 `redis` 的命令了。
 
+无认证模式：
+
+```shell
+redis-cli -h <127.0.0.1> -p <6379>
+```
+
+带认证模式：
+
+```shell
+# 设置认证密码
+redis-cli # 进入redis命令交互
+config set requirepass <密码> # 设置认证密码
+
+# 使用认证密码进入
+redis-cli -h <127.0.0.1> -p <6379> # 进入redis命令交互
+auth <password> # 认证密码
+```
+
+> 使用 `ctrl + D` 或 `ctrl + C` 或 使用`quit`命令 退出命令交互
+
 ### String 相关操作
 
 ```bash
 # 设置 key 的值为 value
 # set key value
 set aimyon 3636
+
+# 查看 key 的过期时间
+# ttl key
+ttl aimyon # 查看 aimyon 的过期时间，-1 表示永不过期，-2 表示已经过期
+
+# 重命名 key
+# rename key newkey
+rename aimyon aimyon2 # 将 aimyon 重命名为 aimyon2
 
 # 获取 key 的值
 # get key
