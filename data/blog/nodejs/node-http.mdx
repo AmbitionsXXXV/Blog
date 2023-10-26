@@ -1,0 +1,153 @@
+---
+title: Node 中的 http 模块
+date: '2023-10-25'
+tags: ['node.js']
+draft: false
+summary: 'Node 中的 http & https 模块'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={3} />
+
+## http 模块
+
+http 模块是建立在 net 模块之上，提供了更高层的 `API(尤其是在搭建服务方面)`，更加方便使用。
+
+### http 建立客户端
+
+```ts
+import * as http from 'http'
+
+const request = http.request('http://baidu.com', { method: 'GET' }, (res) => {
+  console.log(res.statusCode)
+  console.log(res.headers)
+
+  let result: string = ''
+
+  res.on('data', (chunk) => {
+    result += chunk.toString('utf-8')
+    console.log(chunk)
+  })
+
+  res.on('end', () => {
+    console.log('结束', result)
+  })
+})
+
+request.end()
+```
+
+### http 建立服务端
+
+```ts
+import url from 'node:url'
+import http from 'node:http'
+
+function handleReq(req) {
+  console.log('有请求来了！')
+  const urlObj = url.urlToHttpOptions(req.url)
+  console.log('请求路径', urlObj)
+  console.log('请求方法', req.method)
+  console.log('请求头', req.headers)
+
+  let body = ''
+  req.on('data', (chunk) => {
+    body += chunk.toString('utf-8')
+  })
+
+  req.on('end', () => {
+    console.log('请求体', body)
+  })
+}
+
+const server = http.createServer((req, res) => {
+  handleReq(req)
+  res.setHeader('a', '1')
+  res.setHeader('b', '2')
+  res.statusCode = 404
+  res.write('你好！')
+  res.end()
+})
+
+server.listen(9527)
+
+server.on('listening', () => {
+  console.log('server listen 9527')
+})
+```
+
+### 静态资源服务器
+
+```ts
+//静态资源服务器
+import fs from 'node:fs'
+import path from 'node:path'
+import * as http from 'http'
+
+async function getStat(filename) {
+  try {
+    return await fs.promises.stat(filename)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 得到要处理的文件内容
+ */
+async function getFileContent(url) {
+  const urlObj = new URL(url)
+  let filename //要处理的文件路径
+  filename = path.resolve(__dirname, 'public', urlObj.pathname.substr(1))
+  let stat = await getStat(filename)
+  if (!stat) {
+    //文件不存在
+    return null
+  } else if (stat.isDirectory()) {
+    //文件是一个目录
+    filename = path.resolve(__dirname, 'public', urlObj.pathname.substr(1), 'index.html')
+    stat = await getStat(filename)
+    if (!stat) {
+      return null
+    } else {
+      return await fs.promises.readFile(filename)
+    }
+  } else {
+    return await fs.promises.readFile(filename)
+  }
+}
+
+async function handler(req, res) {
+  const info = await getFileContent(req.url)
+
+  if (info) {
+    res.write(info)
+  } else {
+    res.statusCode = 404
+    res.write('Resource is not exist')
+  }
+  res.end()
+}
+
+const server = http.createServer(handler)
+
+server.on('listening', () => {
+  console.log('server listen 6000')
+})
+
+server.listen(6100)
+```
+
+## https 模块
+
+### https 协议
+
+`http` 协议是明文传输的，容易被窃听、窃取，而 `https` 就是为了保证数据在传输过程中不被窃取和篡改(但其实更多因为加密后别人不认识密文也就无法篡改)
+
+[具体https相关](https://blog-v2-bice.vercel.app/blog/http/http-note-three)
+
+### node 里创建 https 服务
+
+- 正常企业：需要购买证书然后部署到 nginx 服务器等. eg: aliyun.com 等网站购买
