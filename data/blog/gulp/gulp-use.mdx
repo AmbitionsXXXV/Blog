@@ -653,3 +653,63 @@ foo()
 [Browsersync] Serving files from: dist
 [Browsersync] Watching files...
 ```
+
+### 使用 Gulp 打包 es 、 commonjs 、 umd 模块
+
+```bash
+pnpm add gulp @babel/core @babel/preset-env gulp-babel gulp-terser gulp-typescript typescript del @babel/plugin-transform-modules-commonjs -D
+
+# 然后设置 package.json 中 type: module
+```
+
+```js
+// 因为现在可以通过 type: module 来使用 es module 语法，所以可以直接使用 es module 语法
+// gulpfile.mjs
+import gulp from 'gulp'
+import babel from 'gulp-babel'
+
+import ts from 'gulp-typescript'
+import { deleteAsync as del } from 'del'
+
+const { src, dest, series } = gulp
+
+// 每次构建前先清空之前的构建结果
+const clean = async () => {
+  await del('es/**')
+  await del('lib/**')
+  await del('cjs/**')
+}
+
+// 从 ts 生成 es 模块
+const genES = () => {
+  const tsProject = ts.createProject('tsconfig.json', {
+    module: 'ESNext',
+  })
+
+  return tsProject.src().pipe(tsProject()).pipe(babel()).pipe(dest('src/es/'))
+}
+
+// 从 ts 生成 commonjs 模块
+const genCJS = () => {
+  return src('src/es/**/*.js')
+    .pipe(
+      babel({
+        presets: [['@babel/env']],
+        plugins: ['@babel/plugin-transform-modules-commonjs'],
+      })
+    )
+    .pipe(dest('src/lib/'))
+}
+
+// 构建声明文件并输出到 es 和 lib 目录下
+const genDeclaration = () => {
+  const tsProject = ts.createProject('tsconfig.json', {
+    declaration: true,
+    emitDeclarationOnly: true,
+  })
+
+  return tsProject.src().pipe(tsProject()).pipe(dest('src/es/')).pipe(dest('src/lib/'))
+}
+
+export default series(clean, genES, genCJS, genDeclaration)
+```
