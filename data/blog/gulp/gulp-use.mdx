@@ -1,0 +1,346 @@
+---
+title: Gulp 使用
+date: '2023-10-30'
+tags: ['webpack']
+draft: false
+summary: '对比 webpack 学习使用 gulp'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" asDisclosure indentDepth={2} />
+
+# Gulp 是什么
+
+> Gulp is a toolkit to automate & enhance your workflow
+
+`Gulp` 是一个基于流的自动化构建工具包，它可以帮助我们自动化地完成一些重复性的工作，比如压缩、编译、合并等等。
+
+# Gulp 对比 webpack
+
+`Gulp` 和 `webpack` 都是前端构建工具，但是它们的定位不同，`webpack` 是模块打包工具，而 `Gulp` 是任务执行工具。
+
+`Gulp` 的核心理念是 `task runner`:
+
+    - 可以定义自己的一系列任务，等待任务执行
+
+    - 基于文件流的方式，将文件作为输入，经过一系列的处理，输出到指定的位置
+
+    - 可以使用 `gulp` 的插件体系来完成某些任务
+
+`webpack` 的核心理念是 `module bundler`:
+
+    - `webpack` 是一个**模块化的打包工具**
+
+    - 可以使用各种各样的 `loader` 来处理不同类型的模块
+
+    - 可以使用各种各样的 `plugin` 在 `webpack` 不同的打包生命周期来完成各种各样的任务
+
+`Gulp` 相对于 `webpack` 的优缺点:
+
+    - `Gulp` 相对于 `webpack` 更加简单、灵活、易用，更适合编写一些自动化的任务
+
+    - 但是 `Gulp` 本身并不支持模块化，需要借助 `browserify` 或者 `webpack` 来完成模块化的打包
+
+# Gulp 的使用
+
+安装
+
+```bash
+pnpm add gulp -D
+
+touch gulpfile.js
+```
+
+## 第一个任务
+
+另外以下都是同步任务，`Gulp` 是支持将任务定义为异步任务的，而异步任务的完成需要调用 `cb` 回调函数或者返回一个 `Promise`、`stream`、`event emitter`、`chile process`、`observable`。
+
+```js
+// gulpfile.js
+const foo = (cb) => {
+  console.log('first gulp task')
+  cb()
+}
+
+// 需要导出任务才能被 gulp 执行
+module.exports = { foo }
+```
+
+然后命令行执行 `pnpx gulp foo`，就可以看到输出了。
+
+```bash
+[16:59:21] Using gulpfile ~/Web_Project/demo/gulpfile.js
+[16:59:21] Starting 'foo'...
+first gulp task
+[16:59:21] Finished 'foo' after 716 μs
+```
+
+另外补充之前旧版本 `Gulp` 中编写任务的方式:
+
+```js
+const gulp = require('gulp')
+
+gulp.task('foo', (cb) => {
+  console.log('first gulp task')
+  cb()
+})
+
+module.exports = { foo }
+```
+
+## Gulp 的转义
+
+1. 使用 `babel` 来转义 `gulpfile.js`:
+
+   ```bash
+   pnpm add @babel/register -D
+
+   # rename gulpfile.js to gulpfile.babel.js
+   ```
+
+2. 使用 `ts-node` 来转义 `gulpfile.js`:
+
+   ```bash
+   pnpm add ts-node -D
+
+   # rename gulpfile.js to gulpfile.ts
+   ```
+
+3. 使用 `esm` 来转义 `gulpfile.js`:
+
+   ```bash
+   pnpm add esm -D
+
+   # rename gulpfile.js to gulpfile.esm.js
+   ```
+
+   ```js
+   // gulpfile.esm.js
+   // 然后就支持 es module 语法了
+   const foo = (cb) => {
+     console.log('first gulp task')
+     cb()
+   }
+
+   // 需要导出任务才能被 gulp 执行
+   export default foo
+   ```
+
+   运行 `pnpx gulp foo`，可以看到输出了:
+
+   ```bash
+   [17:23:21] Requiring external module esm
+   [17:23:21] Using gulpfile ~/Web_Project/demo/gulpfile.esm.js
+   [17:23:21] Starting 'foo'...
+   first gulp task
+   [17:23:21] Finished 'foo' after 739 μs
+   ```
+
+## Gulp task
+
+从 `Gulp` 4.0 开始，`Gulp` 将任务分为 `public tasks` 和 `private tasks`，`public tasks` 可以被命令行直接执行，而 `private tasks` 只能被其他任务调用。
+
+### public tasks
+
+从 `gulpfile` 中导出的任务都是 `public tasks`，可以通过 `pnpx gulp --tasks` 来查看所有的 `public tasks`:
+
+```bash
+[17:23:21] Requiring external module esm
+[17:23:21] Tasks for ~/Web_Project/demo/gulpfile.esm.js
+[17:23:21] ├── foo
+[17:23:21] └─┬ default
+[17:23:21]   └─┬ <series>
+[17:23:21]     └── foo
+```
+
+### private tasks
+
+`private tasks` 被设计为在内部使用，通常作为 `series()` 或 `parallel()` 的参数，不会被命令行直接执行，也不会被其他任务直接调用。
+
+```js
+// gulpfile.esm.js
+import { series } from 'gulp'
+
+// 这里 foo 是 private task，只会被 series 调用
+export const foo = (cb) => {
+  console.log('first gulp task')
+  cb()
+}
+
+const bar = (cb) => {
+  console.log('second gulp task')
+  cb()
+}
+
+// export default series(foo, bar)
+// 默认任务, 执行 `pnpx gulp` 就会执行
+export default (cb) => {
+  console.log('default gulp task')
+  cb()
+}
+```
+
+运行 `pnpx gulp --tasks`，可以看到输出了:
+
+```bash
+[17:29:45] Requiring external module esm
+[17:29:46] Tasks for ~/Web_Project/demo/gulpfile.esm.js
+[17:29:46] ├── foo
+[17:29:46] └─┬ default
+[17:29:46]   └─┬ <series>
+[17:29:46]     ├── foo
+[17:29:46]     └── bar
+```
+
+### compose tasks
+
+`Gulp` 提供了 `series()` 和 `parallel()` 来组合任务，`series()` 会按照顺序执行任务，而 `parallel()` 会并行执行任务。
+
+> To have your tasks execute in order, use the series() method.
+
+`series()` 使用示例:
+
+```js
+// gulpfile.esm.js
+import { series } from 'gulp'
+
+const foo = (cb) => {
+  setTimeout(() => {
+    console.log('first gulp task')
+    cb()
+  }, 1000)
+}
+
+const bar = (cb) => {
+  setTimeout(() => {
+    console.log('second gulp task')
+    cb()
+  }, 2000)
+}
+
+export default series(foo, bar)
+```
+
+运行 `pnpx gulp`，可以看到输出了:
+
+```bash
+[17:59:32] Requiring external module esm
+[17:59:33] Using gulpfile ~/Web_Project/demo/gulpfile.esm.js
+[17:59:33] Starting 'default'...
+[17:59:33] Starting 'foo'...
+first gulp task
+[17:59:34] Finished 'foo' after 1.01 s
+[17:59:34] Starting 'bar'...
+second gulp task
+[17:59:36] Finished 'bar' after 2 s
+[17:59:36] Finished 'default' after 3.01 s
+```
+
+> For tasks to run at maximum concurrency, combine them with the parallel() method.
+
+`parallel()` 使用示例:
+
+```js
+// gulpfile.esm.js
+import { parallel } from 'gulp'
+
+const foo = (cb) => {
+  setTimeout(() => {
+    console.log('first gulp task')
+    cb()
+  }, 1000)
+}
+
+const bar = (cb) => {
+  setTimeout(() => {
+    console.log('second gulp task')
+    cb()
+  }, 2000)
+}
+
+export default parallel(foo, bar)
+```
+
+运行 `pnpx gulp`，可以看到输出了:
+
+```bash
+[18:00:51] Requiring external module esm
+[18:00:51] Using gulpfile ~/Web_Project/demo/gulpfile.esm.js
+[18:00:51] Starting 'default'...
+[18:00:51] Starting 'foo'...
+[18:00:51] Starting 'bar'...
+first gulp task
+[18:00:52] Finished 'foo' after 1 s
+second gulp task
+[18:00:53] Finished 'bar' after 2 s
+[18:00:53] Finished 'default' after 2 s
+```
+
+对比任务执行结束时间可以看到 `series()` 是按照顺序执行任务,用了 `3s`; 而 `parallel()` 是并行执行任务,用了 `2s`。
+
+### 嵌套任务
+
+> `series()` and `parallel()` can be nested to any arbitrary depth.
+
+```js
+// gulpfile.js
+const { series, parallel } = require('gulp')
+
+function clean(cb) {
+  // body omitted
+  cb()
+}
+
+function cssTranspile(cb) {
+  // body omitted
+  cb()
+}
+
+function cssMinify(cb) {
+  // body omitted
+  cb()
+}
+
+function jsTranspile(cb) {
+  // body omitted
+  cb()
+}
+
+function jsBundle(cb) {
+  // body omitted
+  cb()
+}
+
+function jsMinify(cb) {
+  // body omitted
+  cb()
+}
+
+function publish(cb) {
+  // body omitted
+  cb()
+}
+
+exports.build = series(
+  clean,
+  parallel(cssTranspile, series(jsTranspile, jsBundle)),
+  parallel(cssMinify, jsMinify),
+  publish
+)
+```
+
+## Gulp 读写文件
+
+`Gulp` 提供了 `src()` 和 `dest()` 来读写文件。
+
+```js
+// gulpfile.esm.js
+import { src, dest } from 'gulp'
+
+// src() 和 dest() 返回值都是 ReadWriteStream
+const copyFile = () => src('./oor.txt').pipe(dest('dist'))
+
+export default copyFile
+```
