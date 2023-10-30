@@ -9,7 +9,7 @@ authors: ['default']
 
 import TOCInline from 'pliny/ui/TOCInline'
 
-<TOCInline toc={props.toc} exclude="Overview" asDisclosure indentDepth={2} />
+<TOCInline toc={props.toc} exclude="Overview" asDisclosure />
 
 # Gulp 是什么
 
@@ -331,7 +331,9 @@ exports.build = series(
 )
 ```
 
-## Gulp 读写文件
+## Gulp 插件
+
+### Gulp 读写文件
 
 `Gulp` 提供了 `src()` 和 `dest()` 来读写文件。
 
@@ -343,4 +345,311 @@ import { src, dest } from 'gulp'
 const copyFile = () => src('./oor.txt').pipe(dest('dist'))
 
 export default copyFile
+```
+
+### Gulp-babel
+
+`Gulp` 本身不支持 `babel`，需要借助 `gulp-babel` 插件来完成 `babel` 的转义。
+
+```bash
+pnpm add gulp-babel @babel/core @babel/preset-env -D
+```
+
+```js
+// src/main.js
+const singer = 'aimyon'
+
+const foo = () => {
+  console.log('foo')
+}
+
+foo()
+```
+
+通过 `.babelrc` 配置文件来配置 `babel`:
+
+```json
+{
+  "presets": ["@babel/preset-env"]
+}
+```
+
+```js
+// gulpfile.esm.js
+import { src, dest } from 'gulp'
+import babel from 'gulp-babel'
+
+const parseJS = () =>
+  src('src/*.js')
+    .pipe(
+      babel()
+      // 也可以不配置 .babelrc，直接在这里配置
+      // babel('@babel/preset-env')
+    )
+    .pipe(dest('dist'))
+
+export default parseJS
+```
+
+同样执行一下 `pnpx gulp`，可以看到输出了:
+
+```bash
+[21:30:49] Requiring external module esm
+[21:30:50] Using gulpfile ~/Web_Project/demo/gulpfile.esm.js
+[21:30:50] Starting 'default'...
+[21:30:51] Finished 'default' after 752 ms
+```
+
+然后 `dist` 文件夹下确实也有转义后的文件了。
+
+```js
+// dist/main.js
+'use strict'
+
+var singer = 'aimyon'
+var foo = function foo() {
+  console.log('foo')
+}
+foo()
+```
+
+### Gulp-terser
+
+`Gulp` 本身不支持 `terser`，需要借助 `gulp-terser` 插件来完成 `terser` 的压缩。
+
+```bash
+pnpm add gulp-terser -D
+```
+
+```js
+// gulpfile.esm.js
+import { src, dest } from 'gulp'
+import babel from 'gulp-babel'
+import terser from 'gulp-terser'
+
+const parseJS = () =>
+  src('src/*.js')
+    // 转义
+    .pipe(babel())
+    // 压缩
+    .pipe(terser())
+    .pipe(dest('dist'))
+
+export default parseJS
+```
+
+```js:dist/main.js
+// dist/main.js
+// 可以看到其实丑化还不完全
+"use strict";var singer="aimyon",foo=function(){console.log("foo")};foo();
+```
+
+再修改 `gulpfile` :
+
+```js
+import { src, dest } from 'gulp'
+import babel from 'gulp-babel'
+import terser from 'gulp-terser'
+
+const parseJS = () =>
+  src('src/*.js')
+    // 转义
+    .pipe(babel())
+    // 压缩
+    .pipe(terser({ mangle: { toplevel: true } }))
+    .pipe(dest('dist'))
+
+export default parseJS
+```
+
+```js:dist/main.js
+"use strict";var o="aimyon",n=function(){console.log("foo")};n();
+```
+
+再进行更进一步配置:
+
+```js
+// gulpfile.esm.js
+import { src, dest } from 'gulp'
+import babel from 'gulp-babel'
+import terser from 'gulp-terser'
+
+const parseJS = () =>
+  src('src/*.js')
+    // 转义
+    .pipe(babel())
+    // 压缩
+    // .pipe(terser({ mangle: { toplevel: true } }))
+    .pipe(terser({ toplevel: true }))
+    .pipe(dest('dist'))
+
+export default parseJS
+```
+
+```js:dist/main.js
+"use strict";console.log("foo");
+```
+
+### watch
+
+`Gulp` 提供了 `watch()` 来监听文件变化，然后执行任务。
+
+```js
+import { src, dest, watch } from 'gulp'
+import babel from 'gulp-babel'
+import terser from 'gulp-terser'
+
+const parseJS = () =>
+  src('src/*.js')
+    // 转义
+    .pipe(babel())
+    // 压缩
+    .pipe(terser({ mangle: { toplevel: true } }))
+    // .pipe(terser({ toplevel: true }))
+    .pipe(dest('dist'))
+
+// 监听文件变化
+watch('src/**/*.js', parseJS)
+
+export default parseJS
+```
+
+### 使用 Gulp 构建工程
+
+```bash
+pnpm add gulp gulp-babel gulp-terser gulp-less gulp-htmlmin gulp-inject browser-sync -D
+```
+
+```js
+// gulpfile.esm.js
+import { src, dest, watch, series, parallel } from 'gulp'
+import babel from 'gulp-babel'
+import terser from 'gulp-terser'
+import htmlmin from 'gulp-htmlmin'
+import less from 'gulp-less'
+import inject from 'gulp-inject'
+import browserSync from 'browser-sync'
+
+// 1.对html进行打包
+const htmlTask = () =>
+  src('src/**/*.html')
+    .pipe(htmlmin({ collapseWhitespace: true }))
+    .pipe(dest('dist'))
+
+const parseJS = () =>
+  src('src/*.js')
+    // 转义
+    .pipe(babel())
+    // 压缩
+    .pipe(terser({ mangle: { toplevel: true } }))
+    // .pipe(terser({ toplevel: true }))
+    .pipe(dest('dist'))
+
+// 3.对less进行打包
+const lessTask = () => src('src/**/*.less').pipe(less()).pipe(dest('dist'))
+
+// 4.在html中注入js和css
+const injectTask = () =>
+  src('dist/**/*.html')
+    .pipe(inject(src(['dist/**/*.js', 'dist/**/*.css']), { relative: true }))
+    .pipe(dest('dist'))
+
+// 5.开启一个本地服务器
+const bs = browserSync.create()
+const serve = () => {
+  watch('src/**', buildTask)
+
+  bs.init({
+    port: 8080,
+    open: true,
+    files: 'dist/*',
+    server: {
+      baseDir: 'dist',
+    },
+  })
+}
+
+// 创建项目构建的任务
+const buildTask = series(parallel(htmlTask, parseJS, lessTask), injectTask)
+const serveTask = series(buildTask, serve)
+// webpack搭建本地 webpack-dev-server
+
+export default series(buildTask, serveTask)
+```
+
+然后建立根目录下建立 `src` 文件夹，然后在 `src` 文件夹下建立 `index.html`、`index.js`、`index.less`。
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gulp Projecct</title>
+    <!-- inject:css -->
+    <!-- endinject -->
+  </head>
+  <body>
+    <!-- inject:js -->
+    <!-- endinject -->
+  </body>
+</html>
+```
+
+```less
+// src/less/style.less
+@mainColor: skyblue;
+
+body {
+  background-color: @mainColor;
+}
+```
+
+```js
+// src/index.js
+const singer = 'aimyon'
+
+const foo = () => {
+  console.log('foo')
+}
+
+foo()
+```
+
+最后执行 `pnpx gulp`，就可以看到效果了。
+
+```bash
+[22:24:42] Requiring external module esm
+[22:24:43] Using gulpfile ~/Web_Project/demo/gulpfile.esm.js
+[22:24:43] Starting 'default'...
+[22:24:43] Starting 'htmlTask'...
+[22:24:43] Starting 'parseJS'...
+[22:24:43] Starting 'lessTask'...
+[22:24:43] Finished 'parseJS' after 10 ms
+[22:24:43] Finished 'htmlTask' after 23 ms
+[22:24:43] Finished 'lessTask' after 24 ms
+[22:24:43] Starting 'injectTask'...
+[22:24:43] gulp-inject 2 files into index.html.
+[22:24:43] Finished 'injectTask' after 6.85 ms
+[22:24:43] Starting 'htmlTask'...
+[22:24:43] Starting 'parseJS'...
+[22:24:43] Starting 'lessTask'...
+[22:24:44] Finished 'parseJS' after 3.23 ms
+[22:24:44] Finished 'lessTask' after 8.31 ms
+[22:24:44] Finished 'htmlTask' after 8.84 ms
+[22:24:44] Starting 'injectTask'...
+[22:24:44] gulp-inject 2 files into index.html.
+[22:24:44] Finished 'injectTask' after 7.63 ms
+[22:24:44] Starting 'serve'...
+[Browsersync] Access URLs:
+ ---------------------------------------
+       Local: http://localhost:8080
+    External: http://192.168.18.161:8080
+ ---------------------------------------
+          UI: http://localhost:3001
+ UI External: http://localhost:3001
+ ---------------------------------------
+[Browsersync] Serving files from: dist
+[Browsersync] Watching files...
 ```
