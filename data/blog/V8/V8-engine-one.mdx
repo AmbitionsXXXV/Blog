@@ -1,13 +1,17 @@
----
+## import TOCInline from "pliny/ui/TOCInline";
+
 title: V8相关(一)
 date: '2023-3-9'
 tags: ['V8 Engine', 'JavaScript']
 draft: false
 summary: 'V8引擎笔记:介绍V8'
 authors: ['default']
+
 ---
 
-<TOCInline toc={props.toc} exclude="Overview" toHeading={2} />
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" toHeading={3} />
 
 # V8 引擎:其实就是 JavaScript 的虚拟机
 
@@ -17,7 +21,7 @@ authors: ['default']
 - V8 则率先引入了`即时编译(JIT)的双轮驱动`的设计:`混合编译执行`和`解释执行`这两种手段
 - V8 也是早于其他虚拟机引入了`惰性编译`、`内联缓存`、`隐藏类`等机制,进一步优化了 JavaScript 代码的编译执行效率
 
-![](/blog/JS设计思想.png)
+![](/blog/JSDesign.png)
 
 # 什么是 V8(宏观)
 
@@ -42,13 +46,13 @@ mov ax,bx 汇编指令
 
   - 第二种是`编译执行`.采用这种方式时,也需要先将源代码转换为中间代码,然后我们的编译器再将中间代码编译成机器代码.通常编译成的机器代码是以二进制文件形式存储的,需要执行这段程序的时候直接执行二进制文件就可以了.还可以使用虚拟机将编译后的机器代码保存在内存中,然后直接执行内存中的二进制代码.如下:
 
-    ![](/blog/编译执行.png)
+    ![](/blog/CompileExecute.png)
 
 JavaScript 流行的虚拟机:苹果公司在 Safari 中就是用 JavaScriptCore 虚拟机,Firefox 使用了 TraceMonkey 虚拟机,而 Chrome 则使用了 V8 虚拟机
 
 `V8 编译`完整过程如下:
 
-![](/blog/V8流水线.png)
+![](/blog/V8Pipeline.png)
 
 上图可以看到,在 V8 启动执行 JavaScript 之前,它还需要准备执行 JavaScript 时所需要的一些基础环境,这些基础环境包括了` 堆空间` `栈空间` `全局执行上下文` `全局作用域` `消息循环系统` `内置函数 `等,这些内容都是在执行 JavaScript 过程中需要使用到的
 
@@ -182,7 +186,7 @@ for (key in bar) {
 
 基于这个原因 V8 采取了一个权衡的策略以加快查找属性的效率这个策略是将部分常规属性直接存储到对象本身我们把这称为`对象内属性 (in-object properties)`.对象在内存中的展现形式你可以参看下图:
 
-![](/blog/对象内属性.png)
+![](/blog/ObjectProperties.png)
 
 采用`对象内属性`之后常规属性就被保存到 bar 对象本身了这样当再次使用 bar.B 来查找 B 的属性值时 V8 就可以直接从 bar 对象本身去获取该值就可以了这种方式减少查找属性值的步骤增加了查找效率
 
@@ -190,15 +194,15 @@ for (key in bar) {
 
 我们将保存在线性数据结构中的属性称之为`快属性`因为线性数据结构中只需要通过索引即可以访问到属性虽然访问线性结构的速度快但是如果从线性结构中添加或者删除大量的属性时则执行效率会非常低这主要因为会产生大量时间和内存开销
 
-因此如果一个对象的属性过多时 V8 为就会采取另外一种存储策略那就是`慢属性`策略但慢属性的对象内部会有独立的`非线性数据结构 (词典)` 作为属性存储容器。所有的属性元信息不再是线性存储的而是直接保存在属性字典中.这样虽然降低了`查找速度`,但是却提升了`修改对象的属性的速度`
+因此如果一个对象的属性过多时 `V8` 为就会采取另外一种存储策略那就是`慢属性策略`但慢属性的对象内部会有独立的`非线性数据结构 (词典)` 作为属性存储容器。所有的属性元信息不再是线性存储的而是直接保存在属性字典中.这样虽然降低了`查找速度`,但是却提升了`修改对象的属性的速度`
 
-![](/blog/慢属性.png)
+![](/blog/SlowProperty.png)
 
 # 对于使用 delete 删除对象属性的看法
 
 <div className="text-2xl text-cyan-300">为什么不建议使用 delete 删除对象属性</div>
 
-首先 MDN 文档中是这样描述 delete 的: delete 操作符用于删除对象的某个属性；如果没有指向这个属性的引用,那它最终会被释放。
+首先 `MDN` 文档中是这样描述 `delete` 的: `delete` 操作符用于删除对象的某个属性；如果没有指向这个属性的引用,那它最终会被释放。
 
 举个 🌰:
 
@@ -212,13 +216,13 @@ delete creator.prop
 console.log(creator.prop) // 仍然会通过原型链取到 prop 值,从而打印出来
 ```
 
-同时因为 V8 引擎中 elemens(key 为数字) 和 properties(key 为字符串) 的不同存储方式,properties 中默认十个(内属性)仍然在对象内存下存放,然后数量少由线性排列存放在 properties 属性下,过多占用则以字典形式存储
+同时因为 `V8` 引擎中 `elemens(key 为数字)` 和 `properties(key 为字符串)` 的不同存储方式,`properties` 中默认十个(内属性)仍然在对象内存下存放,然后数量少由线性排列存放在 `properties` 属性下,过多占用则以字典形式存储
 
-快属性:elements 和内属性
-慢属性:properties
+快属性:`elements` 和内属性
+慢属性:`properties`
 
-通过开头引用 MDN 描述,可以预想,若是对于在线性表存放的对象属性,使用 delete 操作后,不会释放该内存,从而会破坏线性表结构.影响查询性能
+通过开头引用 `MDN` 描述,可以预想,若是对于在线性表存放的对象属性,使用 `delete` 操作后,不会释放该内存,从而会破坏线性表结构.影响查询性能
 
-<div className="text-2xl text-cyan-300">建议使用赋值为 undefined 删除对象属性</div>
+建议使用赋值为 `undefined` 删除对象属性
 
-不仅可以做到同使用 delete 操作符下的同样结果,还能阻止通过原型链查找
+不仅可以做到同使用 `delete` 操作符下的同样结果,还能阻止通过原型链查找
