@@ -1,0 +1,833 @@
+---
+title: Micro-Frontends
+date: '2023-11-1'
+tags: ['structural', 'Micro-Frontends']
+draft: false
+summary: 'Micro-Frontends in modern web applications'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} asDisclosure exclude="Overview" toHeading={3} />
+
+## 微前端定义
+
+`微前端(Micro-Frontends)` 是一种类似于微服务的架构，它将微服务的理念应用于浏览器端，即将 Web 应用由单一的单体应用转变为多个小型前端应用聚合为一的应用。
+
+简单的说：微前端就是**在一个 Web 应用中独立运行其他的 Web 应用**
+
+## 微前端特点
+
+1. `技术栈无关`：主框架不限制接入应用的技术栈，微应用具备完全自主权；
+
+2. `独立开发、独立部署`：微应用仓库独立，前后端可独立开发，部署完成后主框架自动完成同步更新；
+
+3. `增量升级`：在面对各种复杂场景时，我们通常很难对一个已经存在的系统做全量的技术栈升级或重构，而微前端是一种非常好的实施**渐进式重构的手段和策略**；
+
+4. `独立运行时`：每个微应用之间状态隔离，运行时状态不共享；
+
+5. `环境隔离`：应用之间 `JavaScript`、`CSS` 隔离避免互相影响；
+
+6. `消息通信`：统一的通信方式，降低使用通信的成本；
+
+7. `依赖复用`：解决依赖、公共逻辑需要重复维护的问题；
+
+## iframe
+
+`iframe` 的特点似乎和微前端的特点有些相似，甚至基本重合，但是 `iframe` 最后却并不是微前端的解决方案
+
+这里指的是每个微应用独立开发部署，通过 `iframe` 的方式将这些应用嵌入到父应用系统中，几乎所有微前端的框架最开始都考虑过 `iframe`，但最后都放弃，或者使用部分功能，原因主要有：
+
+    1. `url 不同步`。浏览器刷新 `iframe` url 状态丢失、后退前进按钮无法使用；
+
+    2. `UI 不同步，DOM 结构不共享`。想象一下屏幕右下角 1/4 的 `iframe` 里来一个带遮罩层的弹框，同时我们要求这个弹框要浏览器居中显示，还要浏览器 `resize` 时自动居中；
+
+    3. `全局上下文完全隔离，内存变量不共享`。`iframe` 内外系统的通信、数据同步等需求，主应用的 `cookie` 要透传到根域名都不同的子应用中实现免登效果；也就是 `cookie` 和 `storage` 不能共享，虽然这个问题可以通过 `cookie` 同步和 `storage` 同步来解决(比如使用 postMessage)，但是这样会增加开发成本；
+
+    4. `慢`。每次子应用进入都是一次浏览器上下文重建、资源重新加载的过程，甚至还会阻塞主应用的渲染；
+
+所以 `iframe` 本身就是一个很重的 `html` 标签，它会阻塞主应用的 `JavaScript` 执行，同时 `iframe` 内外系统的通信、数据同步等需求，都需要我们自己去实现，这些都是 `iframe` 微前端化的痛点。
+
+总结下来就是 `iframe` 隔离的太彻底，导致了它的不可用性
+
+## single-spa
+
+[single-spa](https://single-spa.js.org/) 是一个基础的微前端框架，提供了生命周期，并负责调度子应用的生命周期，挟持 `url` 变化事件和函数，`url` 变化时匹配对应子应用，并执行生命周期流程
+
+![single-spa 流程](/blog/singleSpaProcess.svg)
+
+### Root config
+
+- `index.html`：静态资源、子应用入口声明；
+
+  ```html
+  // index.html
+  <!doctype html>
+  <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+      <title>Polyglot Microfrontends</title>
+      <meta name="importmap-type" content="systemjs-importmap" />
+      <script
+        type="systemjs-importmap"
+        src="https://storage.googleapis.com/polyglot.microfrontends.app/importmap.json"
+      ></script>
+      <% if (isLocal) { %>
+      <script type="systemjs-importmap">
+        {
+          "imports": {
+            "@polyglot-mf/root-config": "//localhost:9000/polyglot-mf-root-config.js"
+          }
+        }
+      </script>
+      <% } %>
+      <script src="https://cdn.jsdelivr.net/npm/import-map-overrides@2.2.0/dist/import-map-overrides.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/systemjs@6.8.3/dist/system.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/systemjs@6.8.3/dist/extras/amd.min.js"></script>
+    </head>
+    <body>
+      <script>
+        System.import('@polyglot-mf/root-config')
+        System.import('@polyglot-mf/styleguide')
+      </script>
+      <import-map-overrides-full
+        show-when-local-storage="devtools"
+        dev-libs
+      ></import-map-overrides-full>
+    </body>
+  </html>
+  ```
+
+- `main.js`：子应用注册、主应用启动
+
+  ```js
+  // main.js
+  import { registerApplication, start } from 'single-spa'
+
+  registerApplication({
+    name: '@polyglot-mf/navbar',
+    app: () => System.import('@polyglot-mf/navbar'),
+    activeWhen: '/',
+  })
+
+  registerApplication({
+    name: '@polyglot-mf/clients',
+    app: () => System.import('@polyglot-mf/clients'),
+    activeWhen: '/clients',
+  })
+
+  registerApplication({
+    name: '@polyglot-mf/account-settings',
+    app: () => loadWithoutAmd('@polyglot-mf/account-settings'),
+    activeWhen: '/settings',
+  })
+
+  start()
+
+  // A lot of angularjs libs are compiled to UMD, and if you don't process them with webpack
+  // the UMD calls to window.define() can be problematic.
+  function loadWithoutAmd(name) {
+    return Promise.resolve().then(() => {
+      let globalDefine = window.define
+      delete window.define
+      return System.import(name).then((module) => {
+        window.define = globalDefine
+        return module
+      })
+    })
+  }
+  ```
+
+- `SystemJS`
+
+`single-spa` 提倡的方式：`in-browser`，所以，如果要在浏览器里使用 `ES6` 的 `import/export`，在 `single-spa` 中，参考的是 `SystemJS` 的思路，从而支持在浏览器中使用 `import`、`export`，这部分 `webpack` 也可以实现
+
+### single-spa-layout
+
+指定 `single-spa` 在 `index.html` 中哪里渲染指定的子应用，`constructApplications`，`constructRoutes` 及 `constructLayoutEngine` 是针对定义的 `layout` 中的元素获取属性，再批量注册
+
+```html
+// single-spa-layout
+
+<html>
+  <head>
+    <template id="single-spa-layout">
+      <single-spa-router>
+        <nav class="topnav">
+          <application name="@organization/nav"></application>
+        </nav>
+        <div class="main-content">
+          <route path="settings">
+            <application name="@organization/settings"></application>
+          </route>
+          <route path="clients">
+            <application name="@organization/clients"></application>
+          </route>
+        </div>
+        <footer>
+          <application name="@organization/footer"></application>
+        </footer>
+      </single-spa-router>
+    </template>
+  </head>
+</html>
+```
+
+```js
+// 注册
+import { registerApplication, start } from 'single-spa'
+import {
+  constructApplications,
+  constructRoutes,
+  constructLayoutEngine,
+} from 'single-spa-layout'
+
+// 获取 routes
+const routes = constructRoutes(document.querySelector('#single-spa-layout'))
+
+// 获取所有的子应用
+const applications = constructApplications({
+  routes,
+  loadApp({ name }) {
+    return System.import(name) // SystemJS 引入入口 JS
+  },
+})
+
+// 生成 layoutEngine
+const layoutEngine = constructLayoutEngine({ routes, applications })
+
+// 批量注册子应用
+applications.forEach(registerApplication)
+
+// 启动主应用
+start()
+```
+
+### 子应用注册
+
+`single-spa` 针对子应用不同类型的子应用(如Vue、React等)都进行封装，但核心还是 `bootstrap`、`mount`、`unmount` 生命周期钩子。
+
+```tsx
+import SubApp from './index.tsx'
+
+export const bootstrap = () => {}
+export const mount = () => {
+  // 使用 React 来渲染子应用的根组件
+  ReactDOM.render(<SubApp />, document.getElementById('root'))
+}
+export const unmount = () => {}
+```
+
+### 样式隔离
+
+    - 提供子应用CSS的引入和移除：`single-spa-css`
+
+    ```js
+    import singleSpaCss from 'single-spa-css';
+
+    const cssLifecycles = singleSpaCss({
+      // 这里放你导出的 CSS，如果 webpackExtractedCss 为 true，可以不指定
+      cssUrls: ['https://example.com/main.css'],
+
+      // 是否要使用从 Webpack 导出的 CSS，默认为 false
+      webpackExtractedCss: false,
+
+      // 是否 unmount 后被移除，默认为 true
+      shouldUnmount: true,
+
+      // 超时，不废话了，都懂的
+      timeout: 5000
+    })
+
+    const reactLifecycles = singleSpaReact({...})
+
+    // 加入到子应用的 bootstrap 里
+    export const bootstrap = [
+      cssLifecycles.bootstrap,
+      reactLifecycles.bootstrap
+    ]
+
+    export const mount = [
+      // 加入到子应用的 mount 里，一定要在前面，不然 mount 后会有样式闪一下的问题
+      cssLifecycles.mount,
+      reactLifecycles.mount
+    ]
+
+    export const unmount = [
+      // 和 mount 同理
+      reactLifecycles.unmount,
+      cssLifecycles.unmount
+    ]
+    ```
+
+    - 子应用间CSS样式隔离：推荐使用
+
+        - `scoped CSS(by postcss)`
+
+        - [shadow DOM(主流使用)](https://developer.mozilla.org/zh-CN/docs/Web/API/Web_components/Using_shadow_DOM)
+
+### js隔离
+
+常见解决方案:
+
+    1. `proxy(主流使用)`
+
+    2. `iframe`
+
+给每个子应用添加全局变量，加入时添加，移除是去除：`single-spa-leaked-globals`
+
+```js
+import singleSpaLeakedGlobals from 'single-spa-leaked-globals';
+
+// 其它 single-spa-xxx 提供的生命周期函数
+const frameworkLifecycles = ...
+
+const leakedGlobalsLifecycles = singleSpaLeakedGlobals({
+  globalVariableNames: ['$', 'jQuery', '_'], // 新添加的全局变量
+})
+
+export const bootstrap = [
+  leakedGlobalsLifecycles.bootstrap, // 放在第一位
+  frameworkLifecycles.bootstrap,
+]
+
+export const mount = [
+  leakedGlobalsLifecycles.mount, // mount 时添加全局变量，如果之前有记录在案的，直接恢复
+  frameworkLifecycles.mount,
+]
+
+export const unmount = [
+  leakedGlobalsLifecycles.unmount, // 删掉新添加的全局变量
+  frameworkLifecycles.unmount,
+]
+```
+
+## qiankun
+
+![](/blog/qiankun.png)
+
+1. `qiankun` 会用原生 `fetch` 方法，请求微应用的 `entry` 获取微应用资源，然后通过 `response.text` 把获取内容转为字符串；
+2. 将 `HTML` 字符串传入 `processTpl` 函数，进行 `HTML` 模板解析，通过正则匹配 `HTML` 中对应的 `javaScript(内联、外联)`、`css(内联、外联)`、代码注释、`entry`、`ignore` 收集并替换，去除 `html/head/body` 等标签，其他资源保持原样；
+3. 将收集的 `styles` 外链URL对象通过 `fetch` 获取 `css`，并将 `css` 内容以 `<style>` 的方式替换到原来 `link` 标签的位置；
+4. 收集 `script` 外链对象，对于异步执行的 `JavaScript` 资源会打上 `async` 标识 ，会使用 `requestIdleCallback` 方法延迟执行；
+5. 接下来会创建一个匿名自执行函数包裹住获取到的 `js` 字符串，最后通过 `eval` 去创建一个执行上下文执行 `js` 代码，通过传入 `proxy` 改变 `window` 指向，完成 `JavaScript` 沙箱隔离；
+6. 由于 `qiankun` 是自执行函数执行微应用的 `JavaScript`，因此在加载后的微应用中是看不到 `JavaScript` 资源引用的，只有一个资源被执行替换的标识；
+7. 当一切准备就绪的时候，执行微应用的 `JavaScript` 代码，渲染出微应用
+
+### 样式隔离
+
+`qiankun` 基于 `shadowDOM` 实现的样式隔离
+
+```ts
+function createElement(appContent: string, strictStyleIsolation: boolean): HTMLElement {
+  const containerElement = document.createElement('div')
+  containerElement.innerHTML = appContent
+  // appContent always wrapped with a singular div
+  const appElement = containerElement.firstChild as HTMLElement
+  if (strictStyleIsolation) {
+    if (!supportShadowDOM) {
+      console.warn(
+        '[qiankun]: As current browser not support shadow dom, your strictStyleIsolation configuration will be ignored!'
+      )
+    } else {
+      const { innerHTML } = appElement
+      appElement.innerHTML = ''
+      const shadow = appElement.attachShadow({ mode: 'open' })
+      shadow.innerHTML = innerHTML
+    }
+  }
+
+  return appElement
+}
+```
+
+### js 隔离
+
+基于 ES6 的 `Proxy`，基于原始 window 伪造了一个新的 window 对象，同时借助 Proxy 对象定义了该伪造 window 的基本操作的行为，包括：set、get 等等
+
+```ts
+let global: Window = window
+let mountSandbox = () => Promise.resolve()
+let unmountSandbox = () => Promise.resolve()
+if (sandbox) {
+  const sandboxInstance = createSandbox(appName, containerGetter, Boolean(singular))
+  // 用沙箱的代理对象作为接下来使用的全局对象
+  global = sandboxInstance.proxy
+  mountSandbox = sandboxInstance.mount
+  unmountSandbox = sandboxInstance.unmount
+}
+
+let sandbox: SandBox
+if (window.Proxy) {
+  sandbox = singular ? new LegacySandbox(appName) : new ProxySandbox(appName)
+} else {
+  sandbox = new SnapshotSandbox(appName)
+}
+
+// 其中snapshotSandbox是针对IE等不支持proxy的polyfill
+// 核心看proxySandbox
+export default class ProxySandbox implements SandBox {
+  /** window 值变更的记录快照 */
+  private updateValueMap = new Map<PropertyKey, any>()
+
+  name: string
+
+  proxy: WindowProxy
+
+  sandboxRunning = true
+
+  active() {
+    this.sandboxRunning = true
+    activeSandboxCount++
+  }
+
+  inactive() {
+    clearSystemJsProps(this.updateValueMap, --activeSandboxCount === 0)
+
+    this.sandboxRunning = false
+  }
+
+  constructor(name: string) {
+    this.name = name
+    const { sandboxRunning, updateValueMap } = this
+
+    // https://github.com/umijs/qiankun/pull/192
+    const rawWindow = window
+    const fakeWindow = createFakeWindow(rawWindow)
+
+    const proxy = new Proxy(fakeWindow, {
+      set(_: Window, p: PropertyKey, value: any): boolean {
+        // ...
+      },
+
+      get(_: Window, p: PropertyKey): any {
+        // ...
+      },
+
+      // trap in operator
+      // see https://github.com/styled-components/styled-components/blob/master/packages/styled-components/src/constants.js#L12
+      has(_: Window, p: string | number | symbol): boolean {
+        // ...
+      },
+
+      getOwnPropertyDescriptor(
+        target: Window,
+        p: string | number | symbol
+      ): PropertyDescriptor | undefined {
+        // ...
+      },
+
+      // trap to support iterator with sandbox
+      ownKeys(): PropertyKey[] {
+        // ...
+      },
+
+      deleteProperty(_: Window, p: string | number | symbol): boolean {
+        // ...
+      },
+    })
+
+    this.proxy = proxy
+  }
+}
+```
+
+`qiankun` 中一共存在三类沙箱，基于 `Proxy` 实现方式不同以及是否支持多实例，可以分为两类：
+
+    1. 支持子应用`单实例沙箱(LegacySandbox)`
+    2. 支持子应用`多实例沙箱(ProxySandbox)`
+
+当我们只针对全局运行环境进行代理赋值记录，而不从中取值，那么这样的沙箱只是作为我们记录变化的一种手段，而实际操作仍在主应用运行环境中对 window 进行了读写，因此这类沙箱也只能支持单实例模式，`qiankun` 在实现上将其命名为 `LegacySandbox`。
+
+这类沙箱的激活与卸载思路可以通过如下两个函数代码解释。首先是激活函数，当沙箱被激活时，我们通过曾经记录好的更新过的全局变量（也可以称为快照）来还原子应用所需要的沙箱环境（即上下文）：
+
+```js
+active() {
+  if (!this.sandboxRunning) {
+    this.currentUpdatedPropsValueMap.forEach(
+       (v, p) => this.setWindowProp(p, v)
+    );
+  }
+
+  this.sandboxRunning = true;
+}
+```
+
+等到需要卸载时，沙箱需要做两件事，一是将子应用运行时修改过的全局变量还原，另一个是删除子应用运行时新增的全局变量：
+
+```js
+inactive() {
+  this.modifiedPropsOriginalValueMapInSandbox.forEach(
+    (v, p) => this.setWindowProp(p, v)
+  );
+
+  this.addedPropsMapInSandbox.forEach(
+    (_, p) => this.setWindowProp(p, undefined, true)
+  );
+
+  this.sandboxRunning = false;
+}
+```
+
+`LegacySandbox` 的思路在于虽然建立了沙箱代理，但在子应用运行过程中，所有的赋值仍旧会直接操作 window 对象，代理所做的事情就是记录变化（形成快照）；而针对激活和卸载，沙箱会在激活时还原子应用的状态，而卸载时还原主应用的状态，以此达到沙箱隔离的目的。
+
+`LegacySandbox` 由于会修改 `window 对象`，在多个实例运行时肯定会存在冲突，因此，该沙箱模式只能在单实例场景下使用，而当我们需要同时起多个实例时，`ProxySandbox` 便登场了。
+
+`ProxySandbox` 的方案是同时用 `Proxy` 给子应用运行环境做了 `get` 与 `set` 拦截。沙箱在初始构造时建立一个状态池，当应用操作 window 时，赋值通过 set 拦截器将变量写入状态池，而取值也是从状态池中优先寻找对应属性。由于状态池与子应用绑定，那么运行多个子应用，便可以产生多个相互独立的沙箱环境。
+
+由于 `Proxy` 为 ES6 引入的 API，在不支持 ES6 的环境下，我们可以通过一类原始的方式来实现所要的沙箱，即利用普通对象针对 window 属性值构建快照，用于环境的存储与恢复，并在应用卸载时对 `window` 对象修改做 `diff` 用于子应用环境的更新保存。在 `qiankun` 中也有该降级方案，被称为 `SnapshotSandbox`。当然，这类沙箱同样也不能支持多实例运行，原因也相同。
+
+这类方案的主要思路与 `LegacySandbox` 有些类似，同样主要分为激活与卸载两个部分的操作。思路同 `LegacySandbox` 类似，但不是通过 `Proxy` 实现，而是 `Object` 的操作实现的
+
+```js
+// iter 为一个遍历对象属性的方法
+
+active() {
+  // 记录当前快照
+  this.windowSnapshot = {} as Window;
+  iter(window, (prop) => {
+    this.windowSnapshot[prop] = window[prop];
+  });
+
+  // 恢复之前的变更
+  Object.keys(this.modifyPropsMap).forEach((p: any) => {
+    window[p] = this.modifyPropsMap[p];
+  });
+
+  this.sandboxRunning = true;
+}
+
+inactive() {
+  this.modifyPropsMap = {};
+
+  iter(window, (prop) => {
+    if (window[prop] !== this.windowSnapshot[prop]) {
+      // 记录变更，恢复环境
+      this.modifyPropsMap[prop] = window[prop];
+      window[prop] = this.windowSnapshot[prop];
+    }
+  });
+
+  this.sandboxRunning = false;
+}
+```
+
+### 全局弹窗
+
+目前而言，运行时越界例如 `body` 构建 `DOM` 的场景（弹窗、抽屉、popover 等这种插入到主应用body 的dom 元素），必定会导致构建出来的 DOM 无法应用子应用的样式的情况，目前框架会开放API去改挂载的节点或者挂载的类名，所以目前来说还没有最优解；wujie 的思路比较不错，渲染的 shadowDOM 关联的DOM元素本身就挂在在主应用上，此时全局弹窗就在全局生效
+
+### 路由状态丢失
+
+因为子应用为 `lazy load` 时，若刷新时框架需要先加载资源，`active路由系统`，若此时子应用未加载完成，则可能匹配失败，走到 404，所以这里参考 `single-spa`，劫持 `url change` 事件，再根据 `single-spa` 中切换应用的方式避免访问子应用路由状态丢失；
+
+### 公共依赖
+
+`qiankun` 建议使用 `webpack` 的 `external` 实现公共依赖；
+
+配置 `webpack` 输出的 `bundle` 中排除依赖，换句话说通过在 `Externals` 定义的依赖，最终输出的 `bundle` 不存在该依赖，`externals` 前提是依赖都要有 `cdn` 或 找到它对应的 JS 文件，例如：`jQuery.min.js` 之类的，也就是说这些依赖插件得要是支持 `umd` 格式的才行；
+
+通过这种形式在微前端基座应用加载公共模块，并将微应用引用同样模块的 `Externals` 移除掉，就可以实现模块共享了 但是存在微应用技术栈多样化不统一的情况。
+
+使用时，`qiankun` 将子项目的外链 `script` 标签，内容请求到之后，会记录到一个全局变量中，下次再次使用，他会先从这个全局变量中取。这样就会实现内容的复用，只要保证两个链接的 url 一致，就会优先从缓存中读取；
+
+但是，有的使用 `Vue3`，有的使用 `React` 开发，但 `externals` 并无法支持多版本共存的情况，而且子应用必须配置 `externals`，所以 `qiankun` **不建议使用公共依赖**
+
+### 预加载
+
+核心思路还是类似 `Fiber` 的 `requestIdleCallback`，不过 `qiankun` 主要提供两种方式
+
+```js
+start({ prefetch: 'all' }) // 配置预加载
+```
+
+1. `prefetch: true`：先prefetch第一个微应用，等mount后开始加载其他子应用
+2. `prefetch: 'all'`：加载所有静态资源
+3. `string[]`：加载预指定的子应用
+4. `function`：定制化预加载方案
+
+### 通信方式
+
+通过主应用创建一个全局的共享状态，各个子应用可以获取到全局状态，并监听其变化
+
+```js
+let gloabalState: Record<string, any> = {};
+
+const deps: Record<string, OnGlobalStateChangeCallback> = {};
+
+// 触发全局监听
+function emitGloabl(state: Record<string, any>, prevState: Record<string, any>) {
+  Object.keys(deps).forEach((id: string) => {
+    if (deps[id] instanceof Function) {
+      deps[id](cloneDeep(state), cloneDeep(prevState));
+    }
+  });
+}
+
+export function initGlobalState(state: Record<string, any> = {}) {
+  if (state === gloabalState) {
+    console.warn('[qiankun] state has not changed！');
+  } else {
+    const prevGloabalState = cloneDeep(gloabalState);
+    gloabalState = cloneDeep(state);
+    emitGloabl(gloabalState, prevGloabalState);
+  }
+  return getMicroAppStateActions(`gloabal-${+new Date()}`, true);
+}
+
+export function getMicroAppStateActions(id: string, isMaster?: boolean): MicroAppStateActions {
+  return {
+    /**
+     * onGlobalStateChange 全局依赖监听
+     *
+     * 收集 setState 时所需要触发的依赖
+     *
+     * 限制条件：每个子应用只有一个激活状态的全局监听，新监听覆盖旧监听，若只是监听部分属性，请使用 onStateChange
+     *
+     * 这么设计是为了减少全局监听滥用导致的内存爆炸
+     *
+     * 依赖数据结构为：
+     * {
+     *   {id}: callback
+     * }
+     *
+     * @param callback
+     * @param fireImmediately
+     */
+    onGlobalStateChange(callback: OnGlobalStateChangeCallback, fireImmediately?: boolean) {
+      if (!(callback instanceof Function)) {
+        console.error('[qiankun] callback must be function!');
+        return;
+      }
+      if (deps[id]) {
+        console.warn(`[qiankun] '${id}' gloabal listener already exists before this, new listener will overwrite it.`);
+      }
+      deps[id] = callback;
+      const cloneState = cloneDeep(gloabalState);
+      if (fireImmediately) {
+        callback(cloneState, cloneState);
+      }
+    },
+
+    /**
+     * setGlobalState 更新 store 数据
+     *
+     * 1. 对输入 state 的第一层属性做校验，只有初始化时声明过的第一层（bucket）属性才会被更改
+     * 2. 修改 store 并触发全局监听
+     *
+     * @param state
+     */
+    setGlobalState(state: Record<string, any> = {}) {
+      if (state === gloabalState) {
+        console.warn('[qiankun] state has not changed！');
+        return false;
+      }
+
+      const changeKeys: string[] = [];
+      const prevGloabalState = cloneDeep(gloabalState);
+      gloabalState = cloneDeep(
+        Object.keys(state).reduce((_gloabalState, changeKey) => {
+          if (isMaster || changeKey in _gloabalState) {
+            changeKeys.push(changeKey);
+            return Object.assign(_gloabalState, { [changeKey]: state[changeKey] });
+          }
+          console.warn(`[qiankun] '${changeKey}' not declared when init state！`);
+          return _gloabalState;
+        }, gloabalState),
+      );
+      if (changeKeys.length === 0) {
+        console.warn('[qiankun] state has not changed！');
+        return false;
+      }
+      emitGloabl(gloabalState, prevGloabalState);
+      return true;
+    },
+
+    // 注销该应用下的依赖
+    offGlobalStateChange() {
+      delete deps[id];
+      return true;
+    },
+  }
+}
+```
+
+## Module Federation
+
+基于 `webpack` 的 `Module Federation` 实现
+
+`Module Federation` 中文直译为“模块联邦”，而在 `webpack 官方文档`中，其实并未给出其真正含义，但给出了使用该功能的 `motivation`， 即动机，原文如下：
+
+> Multiple separate builds should form a single application. These separate builds should not have dependencies between each other, so they can be developed and deployed individually. This is often known as Micro-Frontends, but is not limited to that.
+> 即多个独立的构建可以形成一个应用程序。这些独立的构建不会相互依赖，因此可以单独开发和部署它们。 这通常被称为微前端，但并不仅限于此。
+
+不难看出，`MF` 实际想要做的事，便是把**多个无相互依赖、单独部署的应用合并为一个**。通俗点讲，即 `MF` 提供了**能在当前应用中远程加载其他服务器上应用的能力**。对此，可以引出下面两个概念：
+
+- `host`：引用了其他应用的应用
+- `remote`：被其他应用所使用的应用
+
+![](/blog/mf-host.png)
+
+基于 `MF` 的能力，我们可以完全实现一个去中心化的应用部署群：每个应用是单独部署在各自的服务器，每个应用都可以引用其他应用，也能被其他应用所引用，即每个应用可以充当 `host` 的角色，亦可以作为 `remote` 出现，无中心应用的概念。
+
+![](/blog/mf-system.png)
+
+### Module Federation 的使用
+
+```js
+// webpack.config.js
+const HtmlWebpackPlugin = require('html-webpack-plugin')
+const ModuleFederationPlugin = require('webpack/lib/container/ModuleFederationPlugin')
+
+module.exports = {
+  // 其他webpack配置...
+  plugins: [
+    new ModuleFederationPlugin({
+      name: 'empBase',
+      library: { type: 'var', name: 'empBase' },
+      filename: 'emp.js',
+      remotes: {
+        app_two: 'app_two_remote',
+        app_three: 'app_three_remote',
+      },
+      exposes: {
+        './Component1': 'src/components/Component1',
+        './Component2': 'src/components/Component2',
+      },
+      shared: ['react', 'react-dom', 'react-router-dom'],
+    }),
+  ],
+}
+```
+
+### Module Federation 的解析过程
+
+`webpack` compile 后的代码
+
+```js
+var moduleMap = {
+  './components/Comonpnent1': function () {
+    return Promise.all([
+      __webpack_require__.e('webpack_sharing_consume_default_react_react'),
+      __webpack_require__.e('src_components_Close_index_tsx'),
+    ]).then(function () {
+      return function () {
+        return __webpack_require__(16499)
+      }
+    })
+  },
+}
+var get = function (module, getScope) {
+  __webpack_require__.R = getScope
+  getScope = __webpack_require__.o(moduleMap, module)
+    ? moduleMap[module]()
+    : Promise.resolve().then(function () {
+        throw new Error('Module "' + module + '" does not exist in container.')
+      })
+  __webpack_require__.R = undefined
+  return getScope
+}
+var init = function (shareScope, initScope) {
+  if (!__webpack_require__.S) return
+  var oldScope = __webpack_require__.S['default']
+  var name = 'default'
+  if (oldScope && oldScope !== shareScope)
+    throw new Error(
+      'Container initialization failed as it has already been initialized with a different share scope'
+    )
+  __webpack_require__.S[name] = shareScope
+  return __webpack_require__.I(name, initScope)
+}
+```
+
+- `moduleMap`：通过 `exposes` 生成的模块集合；
+- `get`: `host` 通过该函数，可以拿到 `remote` 中的组件；
+- `init`：`host` 通过该函数将依赖注入 `remote` 中；
+
+再看 `moduleMap`，返回对应组件前，先通过 `__webpack_require__.e` 加载了其对应的依赖，让我们看看 `__webpack_require__.e` 做了什么：
+
+```js
+__webpack_require__.f = {}
+// This file contains only the entry chunk.
+// The chunk loading function for additional chunks
+__webpack_require__.e = function (chunkId) {
+  // 获取__webpack_require__.f中的依赖
+  return Promise.all(
+    Object.keys(__webpack_require__.f).reduce(function (promises, key) {
+      __webpack_require__.f[key](chunkId, promises)
+      return promises
+    }, [])
+  )
+}
+__webpack_require__.f.consumes = function (chunkId, promises) {
+  // 检查当前需要加载的chunk是否是在配置项中被声明为shared共享资源，如果在__webpack_require__.O上能找到对应资源，则直接使用，不再去请求资源
+  if (__webpack_require__.o(chunkMapping, chunkId)) {
+    chunkMapping[chunkId].forEach(function (id) {
+      if (__webpack_require__.o(installedModules, id))
+        return promises.push(installedModules[id])
+      var onFactory = function (factory) {
+        installedModules[id] = 0
+        __webpack_modules__[id] = function (module) {
+          delete __webpack_module_cache__[id]
+          module.exports = factory()
+        }
+      }
+      try {
+        var promise = moduleToHandlerMapping[id]()
+        if (promise.then) {
+          promises.push((installedModules[id] = promise.then(onFactory).catch(onError)))
+        } else onFactory(promise)
+      } catch (e) {
+        onError(e)
+      }
+    })
+  }
+}
+```
+
+- 首先，`MF` 会让 `webpack` 以 `filename` 作为文件名生成文件；
+- 其次，文件中以 `var` 的形式暴露了一个名为 `name` 的全局变量，其中包含了 `exposes` 以及 `shared` 中配置的内容；
+- 最后，作为 `host` 时，先通过 `remote` 的 `init` 方法将自身 `shared` 写入 `remote` 中，再通过 `get` 获取 `remote` 中 `expose` 的组件，而作为 `remote` 时，判断 `host` 中是否有可用的共享依赖，若有，则加载 `host` 的这部分依赖，若无，则加载自身依赖；
+
+### Module Federation 的优势
+
+相较于**微前端**的特性，`EMP` 通过 `Module Federation` 在 `runtime` 时引入到其他项目中，这样组件代码就不会编译到项目中；且官网也不推荐在不同的技术栈之间切换；所以所谓的技术栈无关环境隔离、独立开发等特性感觉并没有很好的符合，且目前市场上还有很多存量的前端团队没有升级到 `webpack5`，所以感觉更适合模块间的“减法”，建议在后续迭代多技术栈支撑程度更高后再考虑使用。
+
+## wujie
+
+主应用：http://hostA/pathA/#/hashA
+
+子应用: http://hostB/patchB/#/hashB
+
+应用A加载子应用B，加载子应用B的资源
+
+### js、css 隔离
+
+- JS：使用 `iframe`，将 `http://hostB/patchB/#/hashB` 转为 `http://hostA/patchB/#/hashB`，使得子应用B跟主应用A同源，将子应用 B 的 JS 注入到 `iframe 沙箱`内，在 `iframe 沙箱`内，针对 JS 操作 DOM 的行为，劫持到 `shadowDOM` 上；
+  - `iframe` 劫持 `DOM` 的所有属性，指向 `shadowDOM` 上；
+  - `shadowDOM` `劫持link`、`style`、`script` 等，指向主应用提供的DOM容器上；
+  - 针对 window 事件，劫持指向主应用提供的 DOM 容器上；
+- CSS：使用 `WebComponent` 本身提供样式隔离；
+
+### 全局弹窗
+
+创建的 `shadowDOM` 是挂载在全局的 `DOM tree` 上的，是全局类型的弹窗，而非 `iframe` 的弹窗；
+
+### 刷新不丢失路由状态
+
+将子应用的参数携带到主应用的 URL 上，以参数的形式携带上，避免刷新丢失上下文；
+
+### 白屏问题
+
+1. `初次加载`：在明确子应用时，可以针对创建的 `iframe`、`shadowDOM` 提前创建加载；
+2. `切换应用`：针对子应用的 `shadowDOM`，在主应用提供对应DOM容器入口，在切换应用时进行插拔即可；
+
+   1. `多子应用`：子应用的 JS 是存放在 `iframe` 里的，`DOM` 是存放在 `shadowDOM` 里，在切换应用时，链接上主应用只要把 `?B=pathB/#/hashB` 切换为 `?C=pathC/#/hashC` 即可
+
+### 通信方式
+
+- `props` 注入
+- `window.parent`
+- `eventBus`
