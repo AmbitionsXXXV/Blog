@@ -1,0 +1,53 @@
+---
+title: Leetcode 1011
+date: '2023-10-31'
+tags: ['Algorithm', 'leetcode']
+draft: false
+summary: 'Capacity To Ship Packages Within D Days (binary search)'
+authors: ['default']
+---
+
+## 1011.Capacity To Ship Packages Within D Days
+
+使用 `binary search` 的方式來解題，這題的關鍵在於如何判斷 `mid` 是否符合條件，也就是 `mid` 是否能在 `D` 天內運送完所有的貨物。
+
+1. `左边界和右边界的选择`： 船的最低运载能力肯定是在包裹中的最大重量和所有包裹的总和之间。因此，左边界应该是数组中最大的元素(因为船的载重至少要能够承受最重的包裹)，而右边界则应该是所有包裹的总和(因为如果船的载重足够大，可以一次性运送所有包裹)。
+
+2. `二分搜索`： 在左边界和右边界之间进行二分搜索。每次选择一个中间值，然后模拟按照这个中间值来运送包裹。如果需要的天数小于或等于D，则说明当前的运载能力够大，我们可以将右边界缩小到中间值；否则，需要增加运载能力，将左边界设为中间值+1。
+
+```ts
+function shipWithinDays(weights: number[], D: number): number {
+  // 确定左边界
+  let left = Math.max(...weights)
+  // 确定右边界
+  let right = weights.reduce((sum, weight) => sum + weight, 0)
+
+  // 进行二分搜索
+  while (left < right) {
+    const mid = Math.floor((left + right) / 2)
+    let days = 1
+    let currentWeight = 0
+
+    for (const weight of weights) {
+      // 当前货物重量加上当前货物重量大于 mid 时，需要增加天数
+      if (currentWeight + weight > mid) {
+        days++
+        currentWeight = 0
+      }
+
+      // 当前货物重量加上当前货物重量小于等于 mid 时，说明当前的运载能力还未达到 mid，可以继续增加货物
+      currentWeight += weight
+    }
+
+    if (days <= D) {
+      // 如果天数小于等于 D，说明当前的运载能力够大，我们可以将右边界缩小到中间值
+      right = mid
+    } else {
+      // 需要增加运载能力，将左边界设为中间值+1
+      left = mid + 1
+    }
+  }
+
+  return left
+}
+```
