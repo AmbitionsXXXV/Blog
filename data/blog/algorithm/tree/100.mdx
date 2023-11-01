@@ -1,0 +1,38 @@
+---
+title: Leetcode 100
+date: '2023-10-31'
+tags: ['Algorithm', 'leetcode']
+draft: false
+summary: 'Same tree(tree)'
+authors: ['default']
+---
+
+## 100. Same Tree
+
+1. `如果两个树都为空`： 两个空树显然相同。
+
+2. `如果其中一个树为空，另一个不为空`： 两棵树不相同。
+
+3. `如果两个树的根节点的值不相等`： 两棵树不相同。
+
+4. `递归比较左右子树`： 分别递归地比较两个树的左子树和右子树，如果都相同，说明整棵树相同。
+
+```ts
+class TreeNode {
+  val: number
+  left: TreeNode | null
+  right: TreeNode | null
+  constructor(val?: number, left?: TreeNode | null, right?: TreeNode | null) {
+    this.val = val === undefined ? 0 : val
+    this.left = left === undefined ? null : left
+    this.right = right === undefined ? null : right
+  }
+}
+
+function isSameTree(p: TreeNode | null, q: TreeNode | null): boolean {
+  if (!p && !q) return true
+  if (p && q) return isSameTree(p.left, q.left) && isSameTree(p.right, q.right)
+
+  return false
+}
+```

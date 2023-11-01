@@ -1,0 +1,94 @@
+---
+title: Leetcode 101
+date: '2023-11-1'
+tags: ['Algorithm', 'leetcode']
+draft: false
+summary: 'Symmetric Tree(tree)'
+authors: ['default']
+---
+
+## 101.Symmetric Tree
+
+### 递归思路
+
+```ts
+class TreeNode {
+  val: number
+  left: TreeNode | null
+  right: TreeNode | null
+  constructor(val?: number, left?: TreeNode | null, right?: TreeNode | null) {
+    this.val = val === undefined ? 0 : val
+    this.left = left === undefined ? null : left
+    this.right = right === undefined ? null : right
+  }
+}
+
+function isSymmetric(root: TreeNode | null): boolean {
+  // 没有节点也是对称的
+  if (!root) return true
+
+  // 开始递归
+  return isMirror(root.left, root.right)
+}
+
+function isMirror(left: TreeNode | null, right: TreeNode | null): boolean {
+  // 左右节点都没有，是对称的
+  if (!left && !right) {
+    return true
+  }
+  // 左右节点只有一个，不是对称的
+  if (!left || !right) {
+    return false
+  }
+
+  // 左右节点都有，但是值不相等，不是对称的
+  return (
+    left.val === right.val &&
+    isMirror(left.left, right.right) &&
+    isMirror(left.right, right.left)
+  )
+}
+```
+
+### 迭代
+
+```ts
+class TreeNode {
+  val: number
+  left: TreeNode | null
+  right: TreeNode | null
+  constructor(val?: number, left?: TreeNode | null, right?: TreeNode | null) {
+    this.val = val === undefined ? 0 : val
+    this.left = left === undefined ? null : left
+    this.right = right === undefined ? null : right
+  }
+}
+
+function isSymmetric(root: TreeNode | null): boolean {
+  if (!root) return true
+
+  // 开始迭代
+  const queue: (TreeNode | null)[] = []
+  queue.push(root.left, root.right)
+
+  while (queue.length > 0) {
+    const left = queue.shift()
+    const right = queue.shift()
+
+    // 左右节点都没有，是对称的
+    if (!left && !right) {
+      continue
+    }
+    // 左右节点只有一个，不是对称的
+    if (!left || !right || left.val !== right.val) {
+      return false
+    }
+
+    // 左右节点都有，但是值不相等，不是对称的
+    queue.push(left.left, right.right)
+    queue.push(left.right, right.left)
+  }
+
+  return true
+}
+```
