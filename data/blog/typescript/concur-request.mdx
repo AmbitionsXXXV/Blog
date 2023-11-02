@@ -1,0 +1,48 @@
+---
+title: TypeScript 实现并发请求控制
+date: '2023-11-2'
+tags: ['typescript']
+draft: false
+summary: 'TypeScript 实现并发请求控制'
+authors: ['default']
+---
+
+```ts
+function concurRequest(urls: string[], maxNum: number) {
+  return new Promise((resolve) => {
+    if (urls.length === 0) resolve([])
+
+    let index = 0 // 下一次请求对应的 urls 的下标
+    let count = 0 // 请求完成的数量
+    const result = [] // 请求结果
+
+    async function request() {
+      const i = index // 保存当前请求对应的 urls 的下标
+      const url = urls[index] // 获取当前请求的 url
+      index++ // 下一次请求对应的 urls 的下标 +1
+
+      try {
+        const res = await fetch(url) // 请求
+        result[i] = res // 保存请求结果
+      } catch (error) {
+        result[i] = error // 保存请求结果
+      } finally {
+        if (count === urls.length) {
+          // 请求完成
+          resolve(result)
+        }
+
+        if (index < urls.length) {
+          // 还有请求未发出，继续请求
+          await request()
+        }
+      }
+    }
+
+    // 发起并发请求
+    for (let i = 0; i < Math.min(maxNum, urls.length); i++) {
+      request()
+    }
+  })
+}
+```
