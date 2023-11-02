@@ -7,6 +7,8 @@ summary: 'TypeScript 实现并发请求控制和科里化函数'
 authors: ['default']
 ---
 
+## 实现并发请求控制
+
 ```ts
 function concurRequest(urls: string[], maxNum: number) {
   return new Promise((resolve) => {
@@ -47,7 +49,7 @@ function concurRequest(urls: string[], maxNum: number) {
 }
 ```
 
-实现 Curring 函数
+## 实现 Curring 函数
 
 ```js
 const curry = (fn, a = fn.length, ...args) =>
