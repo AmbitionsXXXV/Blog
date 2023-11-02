@@ -194,7 +194,7 @@ import commonjs from '@rollup/plugin-commonjs'
 module.exports = {
   // 打包入口
   input: './lib/index.js',
-  // 此时不需要设置 external
+  // 此时不需要设置 external，根据业务来判断，如果是纯前端项目，可以不设置 external，如果是库，可以设置 external
   // external: ['lodash'],
   // 多出口
   output: [
@@ -220,6 +220,7 @@ module.exports = {
     },
   ],
   plugins: [
+    terser(),
     commonjs(),
     nodeResolve(),
     babel({ exclude: /node_modules/, babelHelpers: 'bundled' }),
@@ -259,9 +260,11 @@ module.exports = {
     {
       format: 'es',
       file: './build/bundle.min.js',
+      // 使用 terser 插件，只会作用于这个出口
       plugins: [terser()],
     },
   ],
+  // 这里会作用于所有出口
   plugins: [babel()],
 }
 ```
@@ -280,6 +283,60 @@ import babel from '@rollup/plugin-babel'
 module.exports = {
   // ...
   // 增加 babelHelpers: 'bundled' 和 exclude 排除 node_modules
-  plugins: [babel({ exclude: /node_modules/, babelHelpers: 'bundled' })],
+  plugins: [terser(), babel({ exclude: /node_modules/, babelHelpers: 'bundled' })],
 }
+```
+
+### 生成 html & css
+
+使用 `@rollup/plugin-html` 和 `rollup-plugin-postcss(依赖 postcss)` 插件
+
+```js
+// lib/index.js
+import _ from 'lodash'
+import './index.css'
+
+const foo = () => {
+  console.log('foo')
+
+  return _.add(1, 2)
+}
+
+const title = document.createElement('h1')
+title.textContent = 'H2'
+title.className = 'title'
+document.body.appendChild(title)
+
+export default foo
+```
+
+```js
+import terser from '@rollup/plugin-terser'
+import babel from '@rollup/plugin-babel'
+import nodeResolve from '@rollup/plugin-node-resolve'
+import commonjs from '@rollup/plugin-commonjs'
+import html from '@rollup/plugin-html'
+import postcss from 'rollup-plugin-postcss'
+
+module.exports = {
+  // ...
+  plugins: [
+    html(),
+    commonjs(),
+    nodeResolve(),
+    babel({ exclude: /node_modules/, babelHelpers: 'bundled' }),
+    terser(),
+    postcss(),
+  ],
+}
+```
+
+执行 `pnpm build` 会提示
+
+```bash
+# 不过无伤大雅，因为这两个规范有点特别，尤其 amd 基于 requirejs，html script 标签引入的话需要特殊处理
+./lib/index.js → ./build/bundle.umd.js, ./build/bundle.cjs.js, ./build/bundle.amd.js, ./build/bundle.browser.js, ./build/bundle.js, ./build/bundle.min.js...
+(!) Plugin html: plugin-html: The output format 'cjs' is not directly supported. A custom `template` is probably required. Supported formats include: es, esm, iife, umd
+(!) Plugin html: plugin-html: The output format 'amd' is not directly supported. A custom `template` is probably required. Supported formats include: es, esm, iife, umd
+created ./build/bundle.umd.js, ./build/bundle.cjs.js, ./build/bundle.amd.js, ./build/bundle.browser.js, ./build/bundle.js, ./build/bundle.min.js in 469ms
 ```
