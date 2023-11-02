@@ -1,9 +1,9 @@
 ---
-title: TypeScript 实现并发请求控制
+title: TypeScript 实现并发请求控制和科里化函数
 date: '2023-11-2'
 tags: ['typescript']
 draft: false
-summary: 'TypeScript 实现并发请求控制'
+summary: 'TypeScript 实现并发请求控制和科里化函数'
 authors: ['default']
 ---
 
@@ -45,4 +45,20 @@ function concurRequest(urls: string[], maxNum: number) {
     }
   })
 }
+```
+
+实现 Curring 函数
+
+```js
+const curry = (fn, a = fn.length, ...args) =>
+  fn.length <= args.length ? fn(...args) : curry.bind(null, fn, a, ...args)
+
+const sum = (a, b, c) => a + b + c
+
+const curriedSum = curry(sum)
+
+curriedSum(1, 2, 3) // 6
+curriedSum(1)(2, 3) // 6
+curriedSum(1, 2)(3) // 6
+curriedSum(1)(2)(3) // 6
 ```
