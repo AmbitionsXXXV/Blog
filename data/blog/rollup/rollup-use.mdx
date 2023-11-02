@@ -1,0 +1,297 @@
+---
+title: Rollup 使用
+date: '2023-11-2'
+tags: ['rollup', 'structural']
+draft: false
+summary: '学习使用 rollup'
+authors: ['default']
+---
+
+import TOCInline from 'pliny/ui/TOCInline'
+
+<TOCInline toc={props.toc} exclude="Overview" asDisclosure />
+
+## Rollup 是什么
+
+`Rollup` 官网的定义：
+
+> The JavaScript module bundler
+> Compile small pieces of code into something larger and more complex
+
+所以 `Rollup` 也是一个**模块化打包工具**，但是 `Rollup` 主要针对 `ES Module` 进行打包的，所以 `Rollup` 更多时候是专注于 `JavaScript` 的打包(不过其他文件也是支持处理的)，而不是像 `webpack` 那样，可以打包各种各样的文件，比如 `css`、`image` 等等，
+
+而 `webpack` 可以通过各种 `loader` 处理各种各样的文件，以及模块之间的依赖关系，而 `Rollup` 相对于 `webpack` 更加轻量，使用更加简洁也更加容易理解
+
+在开源库里 `Rollup` 的使用是特别多的，比如 `jotai`、`react-router`等
+
+## 使用
+
+```bash
+mkdir rollup-demo && cd rollup-demo
+pnpm add rollup -D
+mkdir lib && touch lib/index.js
+```
+
+```js
+// lib/index.js
+const foo = () => {
+  console.log('foo')
+}
+
+export default foo
+```
+
+```bash
+# 最基础使用，不会做特别处理
+pnpx rollup ./lib/index.js -o ./dist/index.js
+
+# 打包 commonjs 规范
+pnpx rollup ./lib/index.js -o ./dist/index.js -f cjs
+
+# 打包成 立即执行函数 规范
+pnpx rollup ./lib/index.js -o ./dist/index.js -f iife
+
+# 打包成 amd 规范
+pnpx rollup ./lib/index.js -o ./dist/index.js -f amd
+
+# 打包成 umd 规范 需要指定 name
+pnpx rollup ./lib/index.js -o ./dist/index.js -f umd -n rollupDemo
+```
+
+### 配置文件
+
+```bash
+touch rollup.config.js
+```
+
+```js
+// rollup.config.js
+module.exports = {
+  // 打包入口
+  input: './lib/index.js',
+  // 出口
+  // output: {
+  //   format: 'umd',
+  //   name: 'etcRollup',
+  //   file: './dist/bundle.umd.js',
+  // },
+  // 多出口
+  output: [
+    {
+      format: 'umd',
+      name: 'etcRollup',
+      file: './build/bundle.umd.js',
+    },
+    {
+      format: 'cjs',
+      file: './build/bundle.cjs.js',
+    },
+    {
+      format: 'amd',
+      file: './build/bundle.amd.js',
+    },
+    {
+      format: 'iife',
+      name: 'etcIIFE',
+      file: './build/bundle.browser.js',
+    },
+  ],
+}
+```
+
+```bash
+pnpx rollup -c
+
+# or add a script
+# "build": "rollup -c"
+```
+
+对外部依赖的解析
+
+```bash
+pnpm add lodash -D
+```
+
+```js
+// lib/index.js
+import _ from 'lodash'
+
+const foo = () => {
+  console.log('foo')
+
+  return _.add(1, 2)
+}
+
+export default foo
+```
+
+```bash
+pnpm build
+
+# 会有如下提示
+# ...
+(!) Missing global variable names
+https://rollupjs.org/configuration-options/#output-globals
+Use "output.globals" to specify browser global variable names corresponding to external modules:
+lodash (guessing "_")
+lodash (guessing "_")
+(!) Unresolved dependencies
+https://rollupjs.org/troubleshooting/#warning-treating-module-as-external-dependency
+lodash (imported by "lib/index.js")
+# ...
+```
+
+主要是因为在打包为 `umd` / `iife` 时 `lodash` 是一个外部依赖，需要指定全局变量名，同时使用 `lodash` 的地方也需要指定为外部依赖
+
+```diff
+// rollup.config.js
+module.exports = {
+  // 打包入口
+  input: './lib/index.js',
++  // 对 rollup 声明外部依赖
++  external: ['lodash'],
+  // 多出口
+  output: [
+    {
+      format: 'umd',
+      name: 'etcRollup',
+      file: './build/bundle.umd.js',
++      // 设置全局变量
++      globals: {
++        lodash: '_',
++      },
+    },
+    {
+      format: 'cjs',
+      file: './build/bundle.cjs.js',
+    },
+    {
+      format: 'amd',
+      file: './build/bundle.amd.js',
+    },
+    {
+      format: 'iife',
+      name: 'etcIIFE',
+      file: './build/bundle.browser.js',
++      globals: {
++        lodash: '_',
++      },
+    },
+  ],
+}
+```
+
+另外如果打包成 `umd` / `iife` 时，使用了 `lodash` 的话可以这样打包
+
+一下情况可能不需要设置 external：
+
+    1. 仅打包当前项目内部模块： 如果你的项目完全是基于自己编写的模块，没有依赖外部库，那么你不需要设置 `external` 选项。`Rollup` 会默认将项目内的所有模块打包到输出文件中。
+
+    2. 使用 Rollup 插件处理依赖： 如果你使用了 Rollup 插件(比如 `@rollup/plugin-node-resolve` 和 `@rollup/plugin-commonjs`)来处理依赖，这些插件会自动处理模块的引入和解析，你可能不需要手动设置 `external`。插件会帮你自动识别哪些模块是外部依赖，哪些是内部模块。
+
+    3. 只使用 ES6 模块语法： 如果你的项目完全使用ES6模块语法进行模块导入和导出，而不是 `CommonJS` 或者 `AMD` 等其他模块系统，`Rollup` 会更容易识别模块之间的关系，你可能不需要设置 `external`。
+
+```js
+import terser from '@rollup/plugin-terser'
+import babel from '@rollup/plugin-babel'
+import nodeResolve from '@rollup/plugin-node-resolve'
+import commonjs from '@rollup/plugin-commonjs'
+
+module.exports = {
+  // 打包入口
+  input: './lib/index.js',
+  // 此时不需要设置 external
+  // external: ['lodash'],
+  // 多出口
+  output: [
+    {
+      format: 'umd',
+      name: 'etcRollup',
+      file: './build/bundle.umd.js',
+      globals: {
+        lodash: '_',
+      },
+    },
+    {
+      format: 'amd',
+      file: './build/bundle.amd.js',
+    },
+    {
+      format: 'iife',
+      name: 'etcIIFE',
+      file: './build/bundle.browser.js',
+      globals: {
+        lodash: '_',
+      },
+    },
+  ],
+  plugins: [
+    commonjs(),
+    nodeResolve(),
+    babel({ exclude: /node_modules/, babelHelpers: 'bundled' }),
+  ],
+}
+```
+
+### 使用 babel
+
+```bash
+pnpm add @babel/core @babel/preset-env @rollup/plugin-babel -D
+touch .babelrc
+```
+
+```js
+// .babelrc
+{
+  "presets": ["@babel/preset-env"]
+}
+```
+
+```js
+import terser from '@rollup/plugin-terser'
+import babel from '@rollup/plugin-babel'
+
+module.exports = {
+  // 打包入口
+  input: './lib/index.js',
+  // 出口
+  // output: {
+  //   format: 'umd',
+  //   name: 'etcRollup',
+  //   file: './dist/bundle.umd.js',
+  // },
+  external: ['lodash'],
+  // 多出口
+  output: [
+    // ...
+    {
+      format: 'es',
+      file: './build/bundle.js',
+    },
+    {
+      format: 'es',
+      file: './build/bundle.min.js',
+      plugins: [terser()],
+    },
+  ],
+  plugins: [babel()],
+}
+```
+
+这时候执行 `pnpm build`，会有个提示
+
+```bash
+# 虽然 bundled 是 babel 的默认配置，但是 rollup 官方建议明确配置这个选项，以确保你的项目的稳定性和可维护性
+babelHelpers: 'bundled' option was used by default. It is recommended to configure this option explicitly, read more here: https://github.com/rollup/plugins/tree/master/packages/babel#babelhelpers
+```
+
+```js
+import terser from '@rollup/plugin-terser'
+import babel from '@rollup/plugin-babel'
+
+module.exports = {
+  // ...
+  // 增加 babelHelpers: 'bundled' 和 exclude 排除 node_modules
+  plugins: [babel({ exclude: /node_modules/, babelHelpers: 'bundled' })],
+}
+```
