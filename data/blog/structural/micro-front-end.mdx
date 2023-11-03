@@ -1,6 +1,6 @@
 ---
 title: Micro-Frontends
-date: '2023-11-1'
+date: '2023-11-3'
 tags: ['structural', 'Micro-Frontends']
 draft: false
 summary: 'Micro-Frontends in modern web applications'
@@ -790,6 +790,45 @@ __webpack_require__.f.consumes = function (chunkId, promises) {
 - 首先，`MF` 会让 `webpack` 以 `filename` 作为文件名生成文件；
 - 其次，文件中以 `var` 的形式暴露了一个名为 `name` 的全局变量，其中包含了 `exposes` 以及 `shared` 中配置的内容；
 - 最后，作为 `host` 时，先通过 `remote` 的 `init` 方法将自身 `shared` 写入 `remote` 中，再通过 `get` 获取 `remote` 中 `expose` 的组件，而作为 `remote` 时，判断 `host` 中是否有可用的共享依赖，若有，则加载 `host` 的这部分依赖，若无，则加载自身依赖；
+
+### Module Federation 共享模块的处理
+
+为了避免重复加载，`MF` 提供了 `shared` 配置项，用于配置共享模块，其配置项为一个数组，数组中的每一项都是一个对象，对象中可以配置 `name`、`version`、`singleton` 等属性，其中 `name` 为必填项，用于指定需要共享的模块名称，`version` 用于指定模块版本，`singleton` 用于指定是否为单例模式，即是否只有一个实例，若为 `true`，则只会加载一次，后续使用时，会直接使用第一次加载的实例；
+
+```js
+// webpack.config.js
+const HtmlWebpackPlugin = require('html-webpack-plugin')
+const ModuleFederationPlugin = require('webpack/lib/container/ModuleFederationPlugin')
+
+module.exports = {
+  // 其他webpack配置...
+  plugins: [
+    new ModuleFederationPlugin({
+      name: 'empBase',
+      library: { type: 'var', name: 'empBase' },
+      filename: 'emp.js',
+      remotes: {
+        app_two: 'app_two_remote',
+        app_three: 'app_three_remote',
+      },
+      exposes: {
+        './Component1': 'src/components/Component1',
+        './Component2': 'src/components/Component2',
+      },
+      // 配置共享模块
+      shared: [
+        {
+          react:
+            // 全局唯一
+            { singleton: true },
+        },
+        'react-dom',
+        'react-router-dom',
+      ],
+    }),
+  ],
+}
+```
 
 ### Module Federation 的优势
 
