@@ -1,9 +1,9 @@
 ---
-title: Leetcode 144 和 617
-date: '2023-11-1'
+title: Leetcode 144 和 617 和 236
+date: '2023-11-4'
 tags: ['Algorithm', 'leetcode']
 draft: false
-summary: 'Pre Order Traversal & Merge trees(tree)'
+summary: 'Pre Order Traversal & Merge trees & Lowest Common Ancestor(tree)'
 authors: ['default']
 ---
 
@@ -95,5 +95,115 @@ function mergeTrees(root1: TreeNode | null, root2: TreeNode | null): TreeNode | 
   mergedNode.right = mergeTrees(root1.right, root2.right)
 
   return mergedNode
+}
+```
+
+## lowestCommonAncestor
+
+### 递归思路
+
+从根节点开始，递归地在左右子树中查找目标节点，如果在左右子树中分别找到了两个目标节点，那么当前节点就是最近公共祖先。如果只在其中一个子树中找到了目标节点，那么该子树的根节点就是最近公共祖先。如果两个目标节点都在右子树中找到，那么递归调用右子树。如果两个目标节点都在左子树中找到，那么递归调用左子树。
+
+```ts
+class TreeNode {
+  val: number
+  left: TreeNode | null
+  right: TreeNode | null
+  constructor(val?: number, left?: TreeNode | null, right?: TreeNode | null) {
+    this.val = val === undefined ? 0 : val
+    this.left = left === undefined ? null : left
+    this.right = right === undefined ? null : right
+  }
+}
+
+// 定义一个函数，用于找到二叉树中两个节点的最低公共祖先
+function lowestCommonAncestor(
+  root: TreeNode | null, // 二叉树的根节点
+  p: TreeNode | null, // 第一个节点
+  q: TreeNode | null // 第二个节点
+): TreeNode | null {
+  // 如果根节点为空，或者根节点就是 p 或 q 其中之一，那么最低公共祖先就是根节点
+  if (root === null || p === root || q === root) return root
+
+  // 在左子树中寻找 p 和 q 的最低公共祖先
+  const left = lowestCommonAncestor(root.left, p, p)
+
+  // 在右子树中寻找 p 和 q 的最低公共祖先
+  const right = lowestCommonAncestor(root.right, p, q)
+
+  // 如果左子树和右子树都找到了最低公共祖先，那么根节点就是最低公共祖先
+  if (left !== null && right !== null) {
+    return root
+  } else if (left !== null) {
+    // 如果只在左子树找到了最低公共祖先，那么最低公共祖先就是左子树的结果
+    return left
+  } else {
+    // 如果只在右子树找到了最低公共祖先，那么最低公共祖先就是右子树的结果
+    return right
+  }
+}
+```
+
+### 迭代思路
+
+通过迭代的方式模拟递归过程。我们可以使用一个栈(或者队列)来保存遍历的节点，同时使用一个哈希表来保存每个节点的父节点。首先，将根节点入栈，然后遍历树，将每个节点的父节点保存在哈希表中。接下来，分别找到两个目标节点的所有祖先节点，将它们存储在一个集合中。最后，从集合中找到两个节点的最近公共祖先。
+
+```ts
+class TreeNode {
+  val: number
+  left: TreeNode | null
+  right: TreeNode | null
+  constructor(val?: number, left?: TreeNode | null, right?: TreeNode | null) {
+    this.val = val === undefined ? 0 : val
+    this.left = left === undefined ? null : left
+    this.right = right === undefined ? null : right
+  }
+}
+
+// 定义一个函数，用于找到二叉树中两个节点的最低公共祖先
+function lowestCommonAncestor(
+  root: TreeNode | null, // 二叉树的根节点
+  p: TreeNode | null, // 第一个节点
+  q: TreeNode | null // 第二个节点
+): TreeNode | null {
+  // 创建一个 Map，用于存储每个节点的父节点
+  const parent = new Map<TreeNode, TreeNode | null>()
+
+  // 创建一个栈，用于深度优先搜索
+  const stack = [root]
+
+  // 将根节点的父节点设置为null
+  parent.set(root, null)
+
+  // 使用 DFS 遍历树，同时记录每个节点的父节点
+  while (stack.length > 0) {
+    const node = stack.pop()!
+    if (node.left !== null) {
+      parent.set(node.left, node) // 记录左子节点的父节点
+      stack.push(node.left) // 将左子节点加入栈中
+    }
+    if (node.right !== null) {
+      parent.set(node.right, node) // 记录右子节点的父节点
+      stack.push(node.right) // 将右子节点加入栈中
+    }
+  }
+
+  // 创建一个Set，用于存储p节点的所有祖先节点
+  const ancestors = new Set<TreeNode>()
+
+  // 找到p节点的所有祖先节点
+  while (p !== null) {
+    ancestors.add(p) // 将p节点加入祖先节点集合
+    p = parent.get(p)! // 将p节点更新为其父节点
+  }
+
+  // 在q节点的祖先节点中找到最近的公共祖先
+  while (!ancestors.has(q)) {
+    // 如果q节点不在p的祖先节点集合中
+    q = parent.get(q)! // 将q节点更新为其父节点
+  }
+
+  // 返回最低公共祖先节点
+  return q
 }
 ```
