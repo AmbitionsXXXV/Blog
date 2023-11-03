@@ -207,3 +207,47 @@ function lowestCommonAncestor(
   return q
 }
 ```
+
+### 扩展：n 个节点的最低公共祖先
+
+```ts
+class TreeNode {
+  val: number
+  left: TreeNode | null
+  right: TreeNode | null
+  constructor(val?: number, left?: TreeNode | null, right?: TreeNode | null) {
+    this.val = val === undefined ? 0 : val
+    this.left = left === undefined ? null : left
+    this.right = right === undefined ? null : right
+  }
+}
+
+// 定义一个函数，用于找到二叉树中多个节点的最低公共祖先
+function lowestCommonAncestor(root: TreeNode | null, nodes: TreeNode[]): TreeNode | null {
+  // 如果根节点为空，或者根节点在目标节点列表中，那么最低公共祖先就是根节点
+  if (root === null || nodes.includes(root)) return root
+
+  // 初始化找到的节点数量和最低公共祖先
+  let foundNodesCount = 0
+  let foundLCA: TreeNode | null = null
+
+  // 遍历根节点的左右子节点
+  for (const child of [root.left, root.right]) {
+    // 在子节点中寻找最低公共祖先
+    const childLCA = lowestCommonAncestor(child, nodes)
+    // 如果在子节点中找到了最低公共祖先
+    if (childLCA !== null) {
+      // 找到的节点数量加1
+      foundNodesCount++
+      // 更新最低公共祖先
+      foundLCA = childLCA
+    }
+  }
+
+  // 如果找到的节点数量等于目标节点列表的长度，那么最低公共祖先就是根节点
+  if (foundNodesCount === nodes.length) return root
+
+  // 返回找到的最低公共祖先
+  return foundLCA
+}
+```
