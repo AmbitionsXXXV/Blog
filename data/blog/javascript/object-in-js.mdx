@@ -297,3 +297,130 @@ console.log(instance2.colors) // 'red,blue,green'
 instance2.sayName() // 'taka'
 instance2.sayAge() // 35
 ```
+
+组合继承避免了原型链和盗用构造函数的缺陷，融合了它们的优点，成为 `JavaScript` 中最常用的继承模式。
+
+## 原型式继承
+
+原型式继承的思路是借助原型可以基于已有的对象创建新对象，同时还不必因此创建自定义类型。
+
+```js
+function object(o) {
+  function F() {}
+  F.prototype = o
+  return new F()
+}
+
+let person = {
+  name: 'aimyon',
+  friends: ['taka'],
+}
+
+let anotherPerson = object(person)
+anotherPerson.name = 'taka'
+anotherPerson.friends.push('yonezu')
+
+let yetAnotherPerson = object(person)
+yetAnotherPerson.name = 'yonezu'
+yetAnotherPerson.friends.push('aimyon')
+
+console.log(person.friends) // 'taka,yonezu,aimyon'
+```
+
+`object()` 函数会创建一个临时性的构造函数，将传入的对象作为这个构造函数的原型，然后返回这个临时类型的一个新实例。本质上，`object()` 对传入其中的对象执行了一次`浅复制`。
+
+适用于**在不需要单独创建构造函数的情况下，想让一个对象与另一个对象保持类似的情况**。
+
+`ECMAScript 5` 通过新增 `Object.create()` 方法规范化了原型式继承。这个方法接收两个参数：一个用作新对象原型的对象和一个为新对象定义额外属性的对象(可选)。
+
+```js
+let person = {
+  name: 'aimyon',
+  friends: ['taka'],
+}
+
+let anotherPerson = Object.create(person)
+anotherPerson.name = 'taka'
+anotherPerson.friends.push('yonezu')
+
+let yetAnotherPerson = Object.create(person)
+yetAnotherPerson.name = 'yonezu'
+yetAnotherPerson.friends.push('aimyon')
+
+console.log(person.friends) // 'taka,yonezu,aimyon'
+```
+
+`Object.create()` 的第二个参数与 `Object.defineProperties()` 方法的第二个参数格式相同：每个属性都是通过自己的描述符定义的。以这种方式指定的任何属性都会覆盖原型对象上的同名属性。
+
+## 寄生式继承(parasitic inheritance)
+
+寄生式继承的思路与寄生构造函数和工厂模式类似，即创建一个仅用于封装继承过程的函数，该函数在内部以某种方式来增强对象，最后再像真地是它做了所有工作一样返回对象。
+
+```js
+function createAnother(original) {
+  let clone = object(original) // 通过调用函数创建一个新对象
+  clone.sayHi = function () {
+    // 以某种方式来增强这个对象
+    console.log('hi')
+  }
+  return clone // 返回这个对象
+}
+
+let person = {
+  name: 'aimyon',
+  friends: ['taka'],
+}
+
+let anotherPerson = createAnother(person)
+anotherPerson.sayHi() // 'hi'
+```
+
+在主要考虑对象而不是自定义类型和构造函数的情况下，寄生式继承也是一种有用的模式。
+
+> 通过寄生式继承给对象添加函数，会由于不能做到函数复用而降低效率；这一点与构造函数模式类似。
+
+## 寄生组合式继承
+
+组合继承最大的问题就是无论什么情况下，都会调用两次超类构造函数：一次是在创建子类型原型的时候，另一次是在子类型构造函数内部。子类型最终会包含超类型对象的全部实例属性，但我们不得不在调用子类型构造函数时重写这些属性。
+
+寄生组合式继承的基本思路是：不必为了指定子类型的原型而调用超类型的构造函数，我们所需要的无非就是超类型原型的一个副本而已。本质上，就是使用寄生式继承来继承超类型的原型，然后再将结果指定给子类型的原型。
+
+```js
+function inheritPrototype(subType, superType) {
+  let prototype = Object.create(superType.prototype) // 创建对象
+  prototype.constructor = subType // 增强对象
+  subType.prototype = prototype // 指定对象
+}
+
+function SuperType(name) {
+  this.name = name
+  this.colors = ['red', 'blue', 'green']
+}
+
+SuperType.prototype.sayName = function () {
+  console.log(this.name)
+}
+
+function SubType(name, age) {
+  SuperType.call(this, name)
+
+  this.age = age
+}
+
+inheritPrototype(SubType, SuperType)
+
+SubType.prototype.sayAge = function () {
+  console.log(this.age)
+}
+
+let instance1 = new SubType('aimyon', 18)
+instance1.colors.push('black')
+console.log(instance1.colors) // 'red,blue,green,black'
+instance1.sayName() // 'aimyon'
+instance1.sayAge() // 18
+
+let instance2 = new SubType('taka', 35)
+console.log(instance2.colors) // 'red,blue,green'
+instance2.sayName() // 'taka'
+instance2.sayAge() // 35
+```
