@@ -142,7 +142,39 @@ Object.defineProperties(singer, {
 `Object.getOwnPropertyDescriptor()` 方法可以取得给定属性的描述符。他接受两个参数：属性所在的对象和要读取其描述符的属性名称。返回值是一个对象，如果是访问器属性，这个对象的属性有 `configurable`、`enumerable`、`get` 和 `set`；如果是数据属性，这个对象的属性有 `configurable`、`enumerable`、`writable` 和 `value`。
 
 ```js
+let singer = {}
 
+Object.defineProperties(singer, {
+  _name: {
+    value: 'aimyon',
+    configurable: true,
+    enumerable: true,
+    writable: true,
+  },
+  age: {
+    value: 18,
+    configurable: true,
+    enumerable: true,
+    writable: true,
+  },
+  name: {
+    get() {
+      return this._name
+    },
+    set(newValue) {
+      if (newValue !== this._name) {
+        this.age = 35
+      }
+    },
+    configurable: true,
+    enumerable: true,
+  },
+})
+
+let descriptor = Object.getOwnPropertyDescriptor(singer, '_name')
+console.log(descriptor.value) // 'aimyon'
+console.log(descriptor.configurable) // true
+console.log(typeof descriptor.get) // 'undefined'
 ```
 
 # 继承
