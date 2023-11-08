@@ -52,10 +52,10 @@ function concurRequest(urls: string[], maxNum: number) {
 ## 实现 Curring 函数
 
 ```js
-const curry = (fn, a = fn.length, ...args) =>
-  fn.length <= args.length ? fn(...args) : curry.bind(null, fn, a, ...args)
+const curry = (fn: Function, len = fn.length, ...args: any[]) =>
+  len <= args.length ? fn(...args) : curry.bind(null, fn, len, ...args)
 
-const sum = (a, b, c) => a + b + c
+const sum = (a: number, b: number, c: number) => a + b + c
 
 const curriedSum = curry(sum)
 
